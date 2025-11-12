@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Filter, Plus, Eye, TrendingUp } from 'lucide-react'
+import { Search, Filter, Plus, Eye, TrendingUp, Download, Package } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -90,6 +90,7 @@ export default function Home() {
   const [priceRange, setPriceRange] = useState({ min: '', max: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
+  const [isDownloading, setIsDownloading] = useState(false)
   const searchInputRef = useRef(null)
 
   // Search function using API
@@ -253,6 +254,65 @@ export default function Home() {
     }
   }
 
+  const downloadProjectZip = async () => {
+    setIsDownloading(true)
+    try {
+      console.log('Starting download...')
+      
+      // Method 1: Try blob download
+      const response = await fetch('/api/download/project')
+      console.log('Response status:', response.status)
+      
+      if (response.ok) {
+        const blob = await response.blob()
+        console.log('Blob size:', blob.size)
+        
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'architecture-product-catalog.tar.gz'
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        
+        // Cleanup
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        }, 100)
+        
+        console.log('Download completed')
+        setIsDownloading(false)
+      } else {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      
+      // Method 2: Fallback to direct link
+      try {
+        const link = document.createElement('a')
+        link.href = '/api/download/project'
+        link.download = 'architecture-product-catalog.tar.gz'
+        link.target = '_blank'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        console.log('Fallback download initiated')
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError)
+        alert('Download failed. Please right-click and save this link: /api/download/project')
+      }
+      
+      setIsDownloading(false)
+    }
+  }
+
+  const simpleDownload = () => {
+    // Method 3: Simple window.open fallback
+    window.open('/api/download/project', '_blank')
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -280,6 +340,25 @@ export default function Home() {
                 onClick={() => router.push('/schedule')}
               >
                 Schedule
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={downloadProjectZip}
+                title="Download Full Project Source Code"
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-transparent"></div>
+                    Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Package className="w-4 h-4 mr-2" />
+                    Download
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -529,10 +608,10 @@ export default function Home() {
                 <Search className="w-8 h-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-semibold mb-2">Start Searching</h3>
-              <p className="text-muted-foreground max-w-md mx-auto">
+              <p className="text-muted-foreground max-w-md mx-auto mb-6">
                 Search for products by name, brand, SKU, or attributes. Try searching for "downlight", "HPL", "chair", or any product you need.
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2 mb-8">
                 {mockSuggestions.slice(0, 4).map((suggestion) => (
                   <Button
                     key={suggestion}
@@ -544,6 +623,82 @@ export default function Home() {
                   </Button>
                 ))}
               </div>
+              
+              {/* Download Section */}
+              <Card className="max-w-md mx-auto">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    Download Full Project
+                  </CardTitle>
+                  <CardDescription>
+                    Get the complete source code for this architecture & interior product catalog system
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>✅ Complete Next.js 15 fullstack application</p>
+                    <p>✅ Advanced search engine with learning capabilities</p>
+                    <p>✅ Schedule builder with export features</p>
+                    <p>✅ Analytics dashboard and insights</p>
+                    <p>✅ Responsive design with modern UI</p>
+                  </div>
+                  <Button 
+                    onClick={downloadProjectZip}
+                    className="w-full"
+                    size="lg"
+                    disabled={isDownloading}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-transparent"></div>
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Project Source Code
+                      </>
+                    )}
+                  </Button>
+                  <div className="flex gap-2 justify-center mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={simpleDownload}
+                      disabled={isDownloading}
+                    >
+                      Open in New Tab
+                    </Button>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText(window.location.origin + '/api/download/project')}
+                      className="text-xs text-primary underline hover:no-underline"
+                      disabled={isDownloading}
+                    >
+                      Copy Download Link
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Format: .tar.gz (710MB) • Ready for production
+                  </p>
+                  <div className="text-xs text-center text-muted-foreground mt-2">
+                    Need help? Check{' '}
+                    <button 
+                      onClick={() => window.open('/DOWNLOAD_STATUS.md', '_blank')}
+                      className="text-primary underline hover:no-underline"
+                    >
+                      download status
+                    </button>
+                    {' '}or{' '}
+                    <button 
+                      onClick={() => window.open('/DOWNLOAD_INSTRUCTIONS.md', '_blank')}
+                      className="text-primary underline hover:no-underline"
+                    >
+                      instructions
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
