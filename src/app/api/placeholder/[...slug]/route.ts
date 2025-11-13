@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ slug: string[] }> }
+  context: { params: { slug: string[] } },
 ) {
-  const { slug } = await params
+  const { slug } = context.params
   const [width, height] = slug || []
 
   if (!width || !height) {

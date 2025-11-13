@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Filter, Plus, Eye, TrendingUp, Download, Package } from 'lucide-react'
+import { ArrowRight, Eye, Filter, Loader2, Package, RefreshCw, Search, TrendingUp } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,696 +12,641 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/hooks/use-toast'
+import { useSchedules } from '@/hooks/use-schedules'
+import { AddToScheduleDialog } from '@/components/schedule/add-to-schedule-dialog'
 
-// Mock data for demonstration
-const mockProducts = [
-  {
-    id: '1',
-    name: 'Downlight LED 3W 3000K',
-    nameEn: 'Downlight LED 3W 3000K',
-    brand: 'Philips',
-    category: 'Lighting',
-    sku: 'PH-DL-3W-30K',
-    price: 150000,
-    image: '/api/placeholder/200/200',
-    attributes: { wattage: '3W', cri: '90', cct: '3000K', beamAngle: '120°' },
-    viewCount: 245,
-    usageCount: 89
-  },
-  {
-    id: '2',
-    name: 'HPL Taco Walnut',
-    nameEn: 'HPL Taco Walnut',
-    brand: 'Taco',
-    category: 'Material',
-    sku: 'TC-HPL-WNT-001',
-    price: 280000,
-    image: '/api/placeholder/200/200',
-    attributes: { thickness: '1.2mm', finish: 'Textured', color: 'Walnut', size: '1220x2440mm' },
-    viewCount: 189,
-    usageCount: 67
-  },
-  {
-    id: '3',
-    name: 'Ergonomic Office Chair',
-    nameEn: 'Ergonomic Office Chair',
-    brand: 'Herman Miller',
-    category: 'Furniture',
-    sku: 'HM-CHAIR-ERG-01',
-    price: 8500000,
-    image: '/api/placeholder/200/200',
-    attributes: { material: 'Mesh', color: 'Black', adjustableHeight: true, lumbarSupport: true },
-    viewCount: 156,
-    usageCount: 45
-  }
-]
+type CategoryOption = {
+  id: string
+  name: string
+  nameEn?: string
+  productsCount: number
+}
 
-const mockSuggestions = [
-  'downlight 3000K',
-  'HPL Taco',
-  'ergonomic chair',
-  'lampu sorot',
-  'vinyl flooring',
-  'solid surface'
-]
+type BrandOption = {
+  id: string
+  name: string
+  nameEn?: string
+  productsCount: number
+}
 
-const mockCategories = [
-  { id: 'lighting', name: 'Lighting', nameEn: 'Lighting' },
-  { id: 'material', name: 'Material', nameEn: 'Material' },
-  { id: 'furniture', name: 'Furniture', nameEn: 'Furniture' },
-  { id: 'hardware', name: 'Hardware', nameEn: 'Hardware' }
-]
+type VariantSummary = {
+  id: string
+  name: string
+  price: number | null
+  attributes: Record<string, unknown>
+}
 
-const mockBrands = [
-  { id: 'philips', name: 'Philips' },
-  { id: 'taco', name: 'Taco' },
-  { id: 'herman-miller', name: 'Herman Miller' },
-  { id: 'local', name: 'Local Brand' }
-]
+type SearchResultProduct = {
+  id: string
+  name: string
+  nameEn?: string | null
+  brandName: string
+  categoryName?: string
+  productTypeName: string
+  sku: string
+  basePrice?: number | null
+  priceRange?: { min: number | null; max: number | null }
+  variants: VariantSummary[]
+  primaryImage?: string
+  usageCount: number
+  viewCount: number
+}
 
-export default function Home() {
+type TrendingProduct = {
+  id: string
+  name: string
+  brand: { name: string }
+  categoryName?: string
+  primaryImage?: string
+  priceRange?: { min: number | null; max: number | null }
+}
+
+const USER_ID = 'anonymous'
+const SEARCH_LIMIT = 12
+
+export default function HomePage() {
   const router = useRouter()
+  const { toast } = useToast()
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [suggestions, setSuggestions] = useState([])
+  const [searchResults, setSearchResults] = useState<SearchResultProduct[]>([])
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [priceRange, setPriceRange] = useState({ min: '', max: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
-  const [isDownloading, setIsDownloading] = useState(false)
-  const searchInputRef = useRef(null)
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [brands, setBrands] = useState<BrandOption[]>([])
+  const [trendingProducts, setTrendingProducts] = useState<TrendingProduct[]>([])
+  const [loadingSearch, setLoadingSearch] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const [lastQuery, setLastQuery] = useState('')
+  const [totalResults, setTotalResults] = useState(0)
 
-  // Search function using API
-  const performSearch = async (query) => {
-    if (!query.trim()) {
-      setSearchResults([])
-      return
-    }
+  const { schedules, isLoading: isScheduleLoading, refresh: refreshSchedules } = useSchedules(USER_ID)
 
-    try {
-      const params = new URLSearchParams({
-        q: query,
-        category: selectedCategory,
-        brand: selectedBrand,
-        minPrice: priceRange.min,
-        maxPrice: priceRange.max,
-        limit: '20'
-      })
+  useEffect(() => {
+    fetchCatalogMeta()
+    fetchTrendingProducts()
+  }, [])
 
-      const response = await fetch(`/api/search?${params}`)
-      if (response.ok) {
-        const data = await response.json()
-        setSearchResults(data.products || [])
-      } else {
-        // Fallback to mock data if API fails
-        const filtered = mockProducts.filter(product => 
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.nameEn.toLowerCase().includes(query.toLowerCase()) ||
-          product.brand.toLowerCase().includes(query.toLowerCase()) ||
-          product.sku.toLowerCase().includes(query.toLowerCase()) ||
-          product.category.toLowerCase().includes(query.toLowerCase())
-        )
-        setSearchResults(filtered)
+  const performSearch = useCallback(
+    async (query: string, nextOffset = 0, append = false) => {
+      if (!query.trim()) {
+        setSearchResults([])
+        setHasMore(false)
+        setTotalResults(0)
+        return
       }
-    } catch (error) {
-      console.error('Search error:', error)
-      // Fallback to mock data
-      const filtered = mockProducts.filter(product => 
-        product.name.toLowerCase().includes(query.toLowerCase()) ||
-        product.nameEn.toLowerCase().includes(query.toLowerCase()) ||
-        product.brand.toLowerCase().includes(query.toLowerCase()) ||
-        product.sku.toLowerCase().includes(query.toLowerCase()) ||
-        product.category.toLowerCase().includes(query.toLowerCase())
-      )
-      setSearchResults(filtered)
-    }
-  }
 
-  // Suggestions function using API
-  const updateSuggestions = async (query) => {
-    if (!query.trim()) {
+      setLoadingSearch(true)
+      try {
+        const params = new URLSearchParams({
+          q: query,
+          userId: USER_ID,
+          limit: SEARCH_LIMIT.toString(),
+          offset: nextOffset.toString(),
+        })
+
+        if (selectedCategory) params.set('category', selectedCategory)
+        if (selectedBrand) params.set('brand', selectedBrand)
+        if (priceRange.min) params.set('minPrice', priceRange.min)
+        if (priceRange.max) params.set('maxPrice', priceRange.max)
+
+        const response = await fetch(`/api/search?${params.toString()}`)
+        if (!response.ok) throw new Error('Search failed')
+
+        const data = await response.json()
+        const mapped: SearchResultProduct[] = (data.products || []).map((product: any) => ({
+          id: product.id,
+          name: product.name,
+          nameEn: product.nameEn,
+          brandName: product.brandName,
+          categoryName: product.categoryName,
+          productTypeName: product.productTypeName,
+          sku: product.sku,
+          basePrice: product.basePrice,
+          priceRange: product.priceRange,
+          variants: product.variants || [],
+          primaryImage: product.primaryImage,
+          usageCount: product.usageCount,
+          viewCount: product.viewCount,
+        }))
+
+        setSearchResults((prev) => (append ? [...prev, ...mapped] : mapped))
+        setHasMore(Boolean(data.hasMore))
+        setOffset(nextOffset)
+        setLastQuery(query)
+        setTotalResults(data.total || mapped.length)
+      } catch (error) {
+        console.error(error)
+        toast({
+          title: 'Pencarian gagal',
+          description: 'Periksa koneksi atau filter pencarianmu.',
+          variant: 'destructive',
+        })
+        if (!append) {
+          setSearchResults([])
+          setHasMore(false)
+          setTotalResults(0)
+        }
+      } finally {
+        setLoadingSearch(false)
+      }
+    },
+    [priceRange.max, priceRange.min, selectedBrand, selectedCategory, toast],
+  )
+
+  const updateSuggestions = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
       setSuggestions([])
       return
     }
-
     try {
-      const response = await fetch(`/api/suggestions?q=${encodeURIComponent(query)}&limit=5`)
-      if (response.ok) {
-        const data = await response.json()
-        setSuggestions(data.suggestions || [])
-      } else {
-        // Fallback to mock data
-        const filteredSuggestions = mockSuggestions.filter(suggestion =>
-          suggestion.toLowerCase().includes(query.toLowerCase())
-        )
-        setSuggestions(filteredSuggestions.slice(0, 5))
-      }
+      const response = await fetch(`/api/suggestions?q=${encodeURIComponent(query)}&limit=6`)
+      if (!response.ok) throw new Error('Failed to load suggestions')
+      const data = await response.json()
+      setSuggestions(data.suggestions || [])
     } catch (error) {
-      console.error('Suggestions error:', error)
-      // Fallback to mock data
-      const filteredSuggestions = mockSuggestions.filter(suggestion =>
-        suggestion.toLowerCase().includes(query.toLowerCase())
-      )
-      setSuggestions(filteredSuggestions.slice(0, 5))
+      console.error(error)
+      setSuggestions([])
+    }
+  }, [])
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim()
+    if (trimmed.length < 2) {
+      setSearchResults([])
+      setSuggestions([])
+      setHasMore(false)
+      setTotalResults(0)
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      performSearch(trimmed, 0, false)
+      updateSuggestions(trimmed)
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [performSearch, searchQuery, updateSuggestions])
+
+  const fetchCatalogMeta = async () => {
+    try {
+      const response = await fetch('/api/catalog/meta')
+      if (!response.ok) throw new Error('Failed to load catalog metadata')
+      const data = await response.json()
+      setCategories(data.categories || [])
+      setBrands(data.brands || [])
+    } catch (error) {
+      console.error(error)
     }
   }
 
-  useEffect(() => {
-    const delayedSearch = setTimeout(() => {
-      performSearch(searchQuery)
-      updateSuggestions(searchQuery)
-    }, 300)
-
-    return () => clearTimeout(delayedSearch)
-  }, [searchQuery])
-
-  const handleSearch = (query) => {
-    setSearchQuery(query)
-    setShowSuggestions(false)
-    // Track search activity
-    fetch('/api/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: 'anonymous',
-        type: 'SEARCH',
-        searchQuery: query,
-        filters: {
-          category: selectedCategory,
-          brand: selectedBrand,
-          minPrice: priceRange.min,
-          maxPrice: priceRange.max
-        }
-      })
-    }).catch(error => console.error('Error tracking search:', error))
-  }
-
-  const handleProductClick = (product) => {
-    // Track product view
-    fetch('/api/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: 'anonymous',
-        type: 'VIEW_PRODUCT',
-        productId: product.id
-      })
-    }).catch(error => console.error('Error tracking view:', error))
-    
-    // Navigate to product detail page
-    router.push(`/product/${product.id}`)
-  }
-
-  const handleAddToSchedule = async (product) => {
+  const fetchTrendingProducts = async () => {
     try {
-      const response = await fetch('/api/schedule/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scheduleId: 'default',
-          productId: product.id,
-          productName: product.name,
-          brandName: product.brand,
-          sku: product.sku,
-          price: product.price,
-          attributes: product.attributes,
-          quantity: 1,
-          unitOfMeasure: 'pcs'
-        })
-      })
+      const response = await fetch('/api/catalog/trending?limit=6')
+      if (!response.ok) throw new Error('Failed to load trending products')
+      const data = await response.json()
+      setTrendingProducts(
+        (data.products || []).map((product: any) => ({
+          id: product.id,
+          name: product.name,
+          brand: { name: product.brand.name },
+          categoryName: product.categoryName ?? product.category?.name,
+          primaryImage: product.primaryImage,
+          priceRange: product.priceRange,
+        })),
+      )
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
-      if (response.ok) {
-        alert('Product added to schedule!')
-        
-        // Track add to schedule activity
-        fetch('/api/activity', {
+  const handleManualSearch = () => {
+    const trimmed = searchQuery.trim()
+    if (trimmed.length < 2) {
+      toast({
+        title: 'Masukkan kata kunci',
+        description: 'Gunakan minimal 2 karakter untuk memulai pencarian.',
+      })
+      searchInputRef.current?.focus()
+      return
+    }
+    performSearch(trimmed, 0, false)
+    updateSuggestions(trimmed)
+  }
+
+  const handleLoadMore = () => {
+    performSearch(lastQuery, offset + SEARCH_LIMIT, true)
+  }
+
+  const filteredBrands = useMemo(() => {
+    if (!selectedCategory) return brands
+    return brands.filter((brand) => brand.productsCount > 0)
+  }, [brands, selectedCategory])
+
+  const filteredResults = useMemo(() => {
+    if (activeTab === 'all') return searchResults
+    const matcher: Record<string, string[]> = {
+      lighting: ['lighting', 'lampu', 'downlight', 'spotlight'],
+      material: ['material', 'hpl', 'laminate', 'surface'],
+      furniture: ['furniture', 'kursi', 'chair', 'sofa'],
+      hardware: ['hardware', 'handle', 'engsel'],
+    }
+    const tokens = matcher[activeTab] || []
+    return searchResults.filter((product) => {
+      const category = (product.categoryName || '').toLowerCase()
+      return tokens.some((token) => category.includes(token))
+    })
+  }, [activeTab, searchResults])
+
+  const handleNavigate = useCallback(
+    async (productId: string) => {
+      try {
+        await fetch('/api/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: 'anonymous',
-            type: 'ADD_TO_SCHEDULE',
-            productId: product.id
-          })
-        }).catch(error => console.error('Error tracking schedule add:', error))
-      } else {
-        alert('Failed to add to schedule')
+            userId: USER_ID,
+            type: 'CLICK_PRODUCT',
+            productId,
+          }),
+        })
+      } catch (error) {
+        console.error(error)
+      } finally {
+        router.push(`/product/${productId}`)
       }
-    } catch (error) {
-      console.error('Error adding to schedule:', error)
-      alert('Failed to add to schedule')
-    }
+    },
+    [router],
+  )
+
+  const formatCurrency = (value?: number | null) => {
+    if (value === null || value === undefined) return null
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value)
   }
 
-  const downloadProjectZip = async () => {
-    setIsDownloading(true)
-    try {
-      console.log('Starting download...')
-      
-      // Method 1: Try blob download
-      const response = await fetch('/api/download/project')
-      console.log('Response status:', response.status)
-      
-      if (response.ok) {
-        const blob = await response.blob()
-        console.log('Blob size:', blob.size)
-        
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'architecture-product-catalog.tar.gz'
-        a.style.display = 'none'
-        document.body.appendChild(a)
-        a.click()
-        
-        // Cleanup
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        }, 100)
-        
-        console.log('Download completed')
-        setIsDownloading(false)
-      } else {
-        throw new Error(`HTTP ${response.status}`)
-      }
-    } catch (error) {
-      console.error('Download error:', error)
-      
-      // Method 2: Fallback to direct link
-      try {
-        const link = document.createElement('a')
-        link.href = '/api/download/project'
-        link.download = 'architecture-product-catalog.tar.gz'
-        link.target = '_blank'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        console.log('Fallback download initiated')
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError)
-        alert('Download failed. Please right-click and save this link: /api/download/project')
-      }
-      
-      setIsDownloading(false)
-    }
-  }
-
-  const simpleDownload = () => {
-    // Method 3: Simple window.open fallback
-    window.open('/api/download/project', '_blank')
+  const formatPriceRange = (product: SearchResultProduct) => {
+    const min = formatCurrency(product.priceRange?.min ?? product.basePrice)
+    const max = formatCurrency(product.priceRange?.max ?? product.basePrice)
+    if (min && max && min !== max) return `${min} - ${max}`
+    return min ?? 'Harga belum tersedia'
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Search className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <h1 className="text-xl font-semibold">Product Catalog</h1>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <header className="bg-white/70 backdrop-blur-md border-b sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-6 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-primary/10 text-primary">
+              <Search className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => router.push('/insights')}
-              >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Insights
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => router.push('/schedule')}
-              >
-                Schedule
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={downloadProjectZip}
-                title="Download Full Project Source Code"
-                disabled={isDownloading}
-              >
-                {isDownloading ? (
-                  <>
-                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-transparent"></div>
-                    Downloading...
-                  </>
-                ) : (
-                  <>
-                    <Package className="w-4 h-4 mr-2" />
-                    Download
-                  </>
-                )}
-              </Button>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Architecture Catalog</p>
+              <h1 className="text-xl font-semibold">Material / Lighting / Furniture</h1>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/insights')}>
+              <Eye className="w-4 h-4 mr-2" />
+              Insights
+            </Button>
+            <Button size="sm" onClick={() => router.push('/schedule')}>
+              <Package className="w-4 h-4 mr-2" />
+              Project Schedules
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Search Section */}
-        <div className="max-w-4xl mx-auto mb-8">
-          <div className="relative">
+      <main className="container mx-auto px-4 py-8 space-y-8">
+        <section className="bg-white rounded-3xl p-6 shadow-sm border space-y-6">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-muted-foreground">Cari katalog</p>
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
               <Input
                 ref={searchInputRef}
-                type="text"
-                placeholder="Search products... (e.g., downlight 3000K, HPL Taco, kursi, chair)"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className="pl-12 pr-12 h-14 text-lg"
+                onChange={(event) => {
+                  setSearchQuery(event.target.value)
+                  setShowSuggestions(true)
+                }}
+                placeholder='Contoh: "kursi", "HPL Taco", "downlight 3000K"'
+                className="pl-10 py-6 text-lg"
+                onFocus={() => suggestions.length && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    handleManualSearch()
+                  }
+                }}
               />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowFilters(!showFilters)}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2"
-              >
-                <Filter className="w-4 h-4" />
-              </Button>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-20 mt-2 w-full rounded-xl border bg-white shadow-lg overflow-hidden">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      className="w-full text-left px-4 py-2 hover:bg-muted text-sm"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        setSearchQuery(suggestion)
+                        setShowSuggestions(false)
+                        handleManualSearch()
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Suggestions Dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-lg shadow-lg z-50">
-                {suggestions.map((suggestion, index) => (
-                  <div
-                    key={index}
-                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
-                    onClick={() => handleSearch(suggestion)}
-                  >
-                    <Search className="w-4 h-4 text-muted-foreground" />
-                    <span>{suggestion}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* Filters */}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant={showFilters ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowFilters((prev) => !prev)}
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleManualSearch} disabled={loadingSearch}>
+              {loadingSearch ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Searching…
+                </>
+              ) : (
+                'Apply'
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/insights')}>
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Insights
+            </Button>
+            <Button variant="ghost" size="sm" onClick={refreshSchedules} disabled={isScheduleLoading}>
+              {isScheduleLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Refresh Projects
+            </Button>
+          </div>
+
           {showFilters && (
-            <Card className="mt-4">
+            <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Filters</CardTitle>
+                <CardTitle>Filter detail</CardTitle>
+                <CardDescription>Persempit hasil berdasarkan kategori, brand, atau rentang harga.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockCategories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <Label>Kategori</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {categories.map((category) => (
+                      <label key={category.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={selectedCategory === category.id}
+                          onCheckedChange={(checked) => setSelectedCategory(checked ? category.id : '')}
+                        />
+                        <span>
+                          {category.name}{' '}
+                          <span className="text-xs text-muted-foreground">
+                            ({category.productsCount})
+                          </span>
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                  <div>
-                    <Label htmlFor="brand">Brand</Label>
-                    <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select brand" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockBrands.map((brand) => (
-                          <SelectItem key={brand.id} value={brand.id}>
-                            {brand.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Price Range</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Min"
-                        value={priceRange.min}
-                        onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
-                      />
-                      <Input
-                        placeholder="Max"
-                        value={priceRange.max}
-                        onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
-                      />
-                    </div>
+                </div>
+                <div className="space-y-3">
+                  <Label>Brand</Label>
+                  <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Semua brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Semua brand</SelectItem>
+                      {filteredBrands.map((brand) => (
+                        <SelectItem key={brand.id} value={brand.id}>
+                          {brand.name} ({brand.productsCount})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-3">
+                  <Label>Rentang harga (IDR)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Min"
+                      value={priceRange.min}
+                      onChange={(event) => setPriceRange((prev) => ({ ...prev, min: event.target.value }))}
+                    />
+                    <Input
+                      placeholder="Max"
+                      value={priceRange.max}
+                      onChange={(event) => setPriceRange((prev) => ({ ...prev, max: event.target.value }))}
+                    />
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
-        </div>
 
-        {/* Results Section */}
-        <div className="max-w-6xl mx-auto">
-          {searchQuery && (
-            <div className="mb-6">
-              <p className="text-muted-foreground">
-                Found {searchResults.length} results for "{searchQuery}"
-              </p>
+          <Card className="bg-muted/50 border-dashed">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Project schedules</CardTitle>
+                <CardDescription>
+                  {isScheduleLoading
+                    ? 'Memuat project…'
+                    : schedules.length
+                      ? `${schedules.length} project siap dipakai untuk menangkap item.`
+                      : 'Belum ada project. Buat di halaman Project Schedule.'}
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/schedule')}>
+                Kelola Project
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </CardHeader>
+          </Card>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Catalog Results</p>
+              <h2 className="text-2xl font-bold">Search Results</h2>
+              {totalResults > 0 && (
+                <p className="text-sm text-muted-foreground">{totalResults} item ditemukan</p>
+              )}
             </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="flex flex-wrap">
+                <TabsTrigger value="all">Semua</TabsTrigger>
+                <TabsTrigger value="lighting">Lighting</TabsTrigger>
+                <TabsTrigger value="material">Material</TabsTrigger>
+                <TabsTrigger value="furniture">Furniture</TabsTrigger>
+                <TabsTrigger value="hardware">Hardware</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {loadingSearch && (
+            <Card>
+              <CardContent className="p-6 flex items-center gap-3 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Menelusuri katalog…
+              </CardContent>
+            </Card>
           )}
 
-          {/* Tabs for different views */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">All Results</TabsTrigger>
-              <TabsTrigger value="popular">Popular</TabsTrigger>
-              <TabsTrigger value="recent">Recently Used</TabsTrigger>
-            </TabsList>
+          {!loadingSearch && searchResults.length === 0 && (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                Ketik kata kunci minimal 2 karakter untuk melihat hasil pencarian.
+              </CardContent>
+            </Card>
+          )}
 
-            <TabsContent value="all" className="mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {searchResults.map((product) => (
-                  <Card key={product.id} className="group hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg line-clamp-2">{product.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
-                          <Badge variant="secondary">{product.brand}</Badge>
-                          <Badge variant="outline">{product.category}</Badge>
-                        </CardDescription>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-2xl font-bold text-primary">
-                          Rp {product.price.toLocaleString('id-ID')}
-                        </span>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Eye className="w-3 h-3" />
-                          <span>{product.viewCount}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">SKU: {product.sku}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {Object.entries(product.attributes).map(([key, value]) => (
-                            <Badge key={key} variant="outline" className="text-xs">
-                              {key}: {value}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => handleProductClick(product)}
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleAddToSchedule(product)}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="popular" className="mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mockProducts
-                  .sort((a, b) => b.usageCount - a.usageCount)
-                  .map((product) => (
-                    <Card key={product.id} className="group hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden">
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg line-clamp-2">{product.name}</CardTitle>
-                          <CardDescription className="flex items-center gap-2">
-                            <Badge variant="secondary">{product.brand}</Badge>
-                            <Badge variant="outline">{product.category}</Badge>
-                          </CardDescription>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-2xl font-bold text-primary">
-                            Rp {product.price.toLocaleString('id-ID')}
-                          </span>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <TrendingUp className="w-3 h-3" />
-                            <span>{product.usageCount} uses</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="recent" className="mt-6">
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No recently used products yet.</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Products you use frequently will appear here.
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {/* Empty State */}
-          {!searchQuery && searchResults.length === 0 && (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Start Searching</h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                Search for products by name, brand, SKU, or attributes. Try searching for "downlight", "HPL", "chair", or any product you need.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2 mb-8">
-                {mockSuggestions.slice(0, 4).map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSearch(suggestion)}
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
-              </div>
-              
-              {/* Download Section */}
-              <Card className="max-w-md mx-auto">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Package className="w-5 h-5" />
-                    Download Full Project
-                  </CardTitle>
-                  <CardDescription>
-                    Get the complete source code for this architecture & interior product catalog system
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>✅ Complete Next.js 15 fullstack application</p>
-                    <p>✅ Advanced search engine with learning capabilities</p>
-                    <p>✅ Schedule builder with export features</p>
-                    <p>✅ Analytics dashboard and insights</p>
-                    <p>✅ Responsive design with modern UI</p>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {filteredResults.map((product) => (
+              <Card
+                key={product.id}
+                className="hover:shadow-md transition cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleNavigate(product.id)}
+              >
+                <CardContent className="p-5 flex gap-4">
+                  <div className="w-36 h-36 rounded-xl bg-muted overflow-hidden flex-shrink-0">
+                    <img
+                      src={product.primaryImage || '/api/placeholder/200/200'}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <Button 
-                    onClick={downloadProjectZip}
-                    className="w-full"
-                    size="lg"
-                    disabled={isDownloading}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-transparent"></div>
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Project Source Code
-                      </>
-                    )}
-                  </Button>
-                  <div className="flex gap-2 justify-center mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={simpleDownload}
-                      disabled={isDownloading}
-                    >
-                      Open in New Tab
-                    </Button>
-                    <button 
-                      onClick={() => navigator.clipboard.writeText(window.location.origin + '/api/download/project')}
-                      className="text-xs text-primary underline hover:no-underline"
-                      disabled={isDownloading}
-                    >
-                      Copy Download Link
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Format: .tar.gz (710MB) • Ready for production
-                  </p>
-                  <div className="text-xs text-center text-muted-foreground mt-2">
-                    Need help? Check{' '}
-                    <button 
-                      onClick={() => window.open('/DOWNLOAD_STATUS.md', '_blank')}
-                      className="text-primary underline hover:no-underline"
-                    >
-                      download status
-                    </button>
-                    {' '}or{' '}
-                    <button 
-                      onClick={() => window.open('/DOWNLOAD_INSTRUCTIONS.md', '_blank')}
-                      className="text-primary underline hover:no-underline"
-                    >
-                      instructions
-                    </button>
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{product.brandName}</Badge>
+                      {product.categoryName && <Badge variant="outline">{product.categoryName}</Badge>}
+                      <Badge variant="outline">{product.productTypeName}</Badge>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">{product.name}</h3>
+                      {product.nameEn && <p className="text-sm text-muted-foreground">{product.nameEn}</p>}
+                    </div>
+                    <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+                    <p className="text-base font-semibold">{formatPriceRange(product)}</p>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span>{product.viewCount} views</span>
+                      <span>{product.usageCount} schedule adds</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleNavigate(product.id)
+                        }}
+                      >
+                        Detail produk
+                      </Button>
+                      <AddToScheduleDialog
+                        trigger={
+                          <Button
+                            size="sm"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            Tambahkan
+                          </Button>
+                        }
+                        product={product}
+                        userId={USER_ID}
+                        schedules={schedules}
+                        isScheduleLoading={isScheduleLoading}
+                        onRefreshSchedules={refreshSchedules}
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center">
+              <Button variant="outline" onClick={handleLoadMore} disabled={loadingSearch}>
+                {loadingSearch ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Muat lebih banyak
+              </Button>
             </div>
           )}
-        </div>
+        </section>
+
+        <Separator />
+
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Personalized picks</p>
+              <h2 className="text-2xl font-bold">Trending Products</h2>
+            </div>
+            <Button variant="ghost" size="sm" onClick={fetchTrendingProducts}>
+              Refresh
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {trendingProducts.length ? (
+              trendingProducts.map((product) => {
+                const minPrice = formatCurrency(product.priceRange?.min)
+                const maxPrice = formatCurrency(product.priceRange?.max)
+                return (
+                  <Card key={product.id} className="hover:shadow-md transition">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={product.primaryImage || '/api/placeholder/300/200'}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        {product.categoryName && <Badge variant="outline">{product.categoryName}</Badge>}
+                        <h3 className="font-semibold">{product.name}</h3>
+                        <p className="text-sm text-muted-foreground">{product.brand.name}</p>
+                        {minPrice && (
+                          <p className="text-sm font-medium">
+                            {minPrice}
+                            {maxPrice && maxPrice !== minPrice && <> - {maxPrice}</>}
+                          </p>
+                        )}
+                      </div>
+                      <Button className="w-full" variant="outline" onClick={() => handleNavigate(product.id)}>
+                        Lihat produk
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              <Card className="md:col-span-2 lg:col-span-3">
+                <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                  Belum ada data trending. Tambahkan aktivitas pencarian dan schedule untuk memicu rekomendasi.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   )
