@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 
 type BrandDetail = {
@@ -26,6 +27,7 @@ export default function BrandDetailClient({ brand, categories }: { brand: BrandD
   const { toast } = useToast()
   const [state, setState] = useState({ website: brand.website || '', email: brand.email || '', contact: brand.contact || '' })
   const [subs, setSubs] = useState(brand.subcategories)
+  const [newSubId, setNewSubId] = useState<string>('')
 
   const saveMain = async () => {
     const res = await fetch(`/api/brands/${brand.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) })
@@ -40,6 +42,10 @@ export default function BrandDetailClient({ brand, categories }: { brand: BrandD
       toast({ title: 'Tersimpan', description: 'Kontak subkategori diperbarui.' })
     }
   }
+
+  const availableSubcats = categories.filter(
+    (c) => c.parentId === brand.categoryId && !subs.some((s) => s.id === c.id),
+  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,6 +86,48 @@ export default function BrandDetailClient({ brand, categories }: { brand: BrandD
             <CardDescription>Kontak sales per subkategori (opsional)</CardDescription>
           </CardHeader>
           <CardContent>
+            {availableSubcats.length > 0 && (
+              <div className="flex flex-col md:flex-row md:items-end gap-2 mb-4">
+                <div className="flex-1">
+                  <Label>Link new subcategory</Label>
+                  <Select value={newSubId} onValueChange={setNewSubId}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Choose subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSubcats.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!newSubId) return
+                    const res = await fetch(`/api/brands/${brand.id}/subcategory/${newSubId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({}),
+                    })
+                    if (res.ok) {
+                      const data = await res.json()
+                      const sub = categories.find((c) => c.id === data.link.subcategoryId)
+                      if (sub) {
+                        setSubs((prev) => [...prev, { id: sub.id, name: sub.name, salesEmail: data.link.salesEmail, salesContact: data.link.salesContact }])
+                      }
+                      setNewSubId('')
+                      toast({ title: 'Subcategory linked', description: 'Brand linked to subcategory.' })
+                    }
+                  }}
+                  disabled={!newSubId}
+                >
+                  Add
+                </Button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <UITable>
                 <TableHeader>
@@ -119,4 +167,3 @@ export default function BrandDetailClient({ brand, categories }: { brand: BrandD
     </div>
   )
 }
-

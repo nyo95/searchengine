@@ -9,7 +9,6 @@ export type ScheduleSummary = {
   createdAt: string
   updatedAt: string
   itemsCount: number
-  totalAmount: number
 }
 
 export function useSchedules(userId: string) {

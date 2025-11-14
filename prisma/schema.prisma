@@ -247,14 +247,14 @@ model ScheduleItem {
   schedule        ProjectSchedule @relation(fields: [scheduleId], references: [id])
   
   // Product reference (snapshot)
-  productId       String
+  productId       String?
   variantId       String?
   productName     String
   brandName       String
   sku             String
   
   // Snapshot of data at time of addition
-  price           Decimal
+  price           Decimal?
   attributes      Json // Snapshot of variant attributes
   
   // Schedule fields

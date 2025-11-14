@@ -1,94 +1,150 @@
-## Architecture Catalog & Schedule Workspace
+## Architecture Catalog & Material Scheduler
 
-Localized catalog for material, lighting, furniture, and hardware products with learning-aware search, schedule builder, and lightweight insights. Built on Next.js 14 App Router + Prisma + PostgreSQL.
+Localized catalog untuk material, lighting, furniture, dan hardware dengan fokus:
 
-### Key Capabilities
-- **Hierarchical catalog** – Brand → Product Type → Product → Variant → Media with flexible JSON attributes per variant.
-- **Search that feels “Google-like”** – bilingual keywords, synonym table (`kursi ↔ chair`, `lampu sorot ↔ spotlight`, `hpl ↔ laminate`, etc.), usage-based ranking, pagination, and safe limits.
-- **Internal learning signals** – every search / click / add-to-schedule is stored in `UserActivity` and converted into `UserPreference` weights to influence subsequent search scores.
-- **Schedules & exports** – create project schedules, capture product snapshots (qty, UoM, unit price, area, notes), view totals, and export CSV or Excel-ready `.xls`.
-- **Insights** – trends for searches, product usage, categories, brands, plus a dedicated endpoint for “top 5 habits” per user.
+- search engine yang ringan dan bilingual,
+- material scheduler per project yang sinkron dengan plugin SketchUp **Material Scheduler**,
+- pengelolaan brand & subkategori (mis. `Material → High Pressure Laminate`).
+
+Stack: **Next.js App Router + Prisma + PostgreSQL**. UI mengikuti scaffold Z.ai (`Search | Projects | Brands`).  
+Schedule di sini adalah **daftar spesifikasi**, *bukan* alat menghitung BQ / grand total biaya.
 
 ---
 
 ### 1. Prerequisites
-| Requirement | Notes |
-|-------------|-------|
-| Node.js 18+ | `nvm use 18` (or newer compatible with Next.js 14) |
-| PostgreSQL 14+ | Must allow `pg_trgm`/FTS extensions if you plan to extend search |
 
-Create `.env` at repo root:
+| Requirement    | Notes                                                   |
+| -------------- | ------------------------------------------------------- |
+| Node.js 18+    | Cocok dengan Next.js 15 + Turbopack                    |
+| PostgreSQL 14+ | Database `catalog` dengan akses lokal (lihat `.env`)   |
+
+Buat `.env` di root repo:
+
 ```bash
 DATABASE_URL="postgresql://user:password@localhost:5432/catalog"
 ```
 
+---
+
 ### 2. Install & Prepare Database
+
 ```bash
 npm install
-npm run db:generate          # optional but fast
-npm run db:migrate           # prisma migrate dev
-npm run db:seed              # loads demo brands / products / synonyms
+npm run db:generate     # optional, cepat
+npm run db:migrate      # apply seluruh migration Prisma
+npm run db:seed         # kosongkan DB & buat user 'anonymous'
 ```
+
+Seed **tidak lagi** memuat demo produk/brand – katalog dimulai kosong (kelopak bunga).  
+Semua data diisi lewat import CSV atau input manual dari UI.
+
+---
 
 ### 3. Run the App
+
 ```bash
-npm run dev
-# visit http://localhost:3000
+npm run dev       # menggunakan Turbopack
+# buka http://localhost:3000
 ```
 
-All demo traffic uses the `anonymous` user (seeded automatically) so learning signals remain internal.
+Semua traffic menggunakan user `anonymous` sehingga learning signal tetap internal.
 
 ---
 
-### Included Demo Data
-- **Brands & product types**: Taco (HPL), LuxBright + Philips (downlights & spotlights), Herman Miller + Studio Kursi (chairs).
-- **Products/variants**: 12+ SKUs across material/lighting/furniture with variant attributes, pricing, and media (images + datasheets/CAD links).
-- **Synonyms**: ≥10 bilingual pairs so “kursi”/“chair”/“lampu sorot”/“spotlight” and “hpl”/“laminate” resolve identically.
+### 4. Fitur Utama
+
+#### 4.1 Search
+
+- Input keyword + synonyms (mis. `kursi` / `chair`, `hpl` / `laminate`).
+- Filter by **Category** dan **Brand**.
+- Ranking berdasarkan **viewCount** + **usageCount** (jumlah item yang dipakai di schedule).
+- Harga (`basePrice` / `priceRange`) hanya informasi opsional di kartu, **bukan** filter / sorting.
+
+#### 4.2 Projects & Project Material Schedule
+
+- Tab **Projects**:
+  - Membuat project baru (ProjectSchedule).
+  - Menampilkan daftar project dengan jumlah item.
+- Halaman `/projects/[id]/schedule`:
+  - Tabel **Items** (Project Material Schedule) dengan kolom:
+    - **Material Type** – `kind_label` dari CSV atau manual input.
+    - **Brand** – nama brand (bisa diubah dari dropdown).
+    - **SKU / Type** – subtype / kode item.
+    - **Notes** – catatan material.
+  - **Import CSV**:
+    - Format utama mengikuti plugin SketchUp *Material Scheduler*:
+      - Header minimal: `code, kind_label, brand, subtype, notes, …`
+      - Semua baris akan tampil di schedule.
+      - Baris dengan `brand + subtype` lengkap:
+        - otomatis membuat / menghubungkan **Brand**, **ProductType**, **Product** di katalog.
+      - Baris tanpa brand/SKU lengkap:
+        - tetap disimpan sebagai baris schedule (snapshot), **tanpa** membuat Product/Brand baru.
+      - Import file yang sama berulang **tidak** menduplikasi baris (dedup `(scheduleId, brandName, sku)`).
+  - **Add Material**:
+    - Tambah satu baris material manual (Material Type, Brand, SKU, Notes).
+    - Jika brand+SKU lengkap, akan di‑bind ke katalog; jika tidak, disimpan sebagai snapshot saja.
+  - `quantity`, `unitOfMeasure`, `price` disimpan sebagai metadata opsional dan tidak dipakai untuk menghitung total.
+
+#### 4.3 Brands Workspace
+
+- Tab **Brands**:
+  - Filter by kategori / subkategori dan search by nama brand.
+  - Tabel brand: **Brand, Website, Email, Contact, Subcategories, Products**.
+- Halaman `/brands/[id]` (Brand Detail):
+  - **Brand Information** – edit website, email, contact.
+  - **Subcategory Contacts**:
+    - List subkategori yang sudah terhubung ke brand (mis. `High Pressure Laminate`).
+    - Sales Email + Sales Contact per subkategori.
+    - Input “link new subcategory”:
+      - Jika nama subkategori sudah ada sebagai child `Category` di bawah kategori utama brand → hanya bind.
+      - Jika belum ada → otomatis membuat `Category` baru sebagai subkategori & bind ke brand.
 
 ---
 
-### API Highlights
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/search?q=&userId=` | Catalog search with filters (`category`, `brand`, `minPrice`, `maxPrice`, pagination). |
-| `GET /api/suggestions?q=` | Type-ahead suggestions (products, brands, types, synonyms). |
-| `POST /api/activity` | Track `SEARCH`, `CLICK_PRODUCT`, `VIEW_PRODUCT`, `ADD_TO_SCHEDULE`, etc. |
-| `GET /api/schedule?userId=` + `POST /api/schedule` | List/create project schedules. |
-| `GET/POST/DELETE /api/schedule/items` | Read/add/remove snapshot rows for a schedule. |
-| `GET /api/insights` | Aggregated stats for overview cards (search volume, schedules, brands, categories, trends). |
-| `GET /api/insights/preferences?userId=` | Top 5 learned preferences for the specified user (falls back to global weights). |
-| `GET /api/catalog/meta` | Category + brand metadata with product counts (for filter panes). |
-| `GET /api/catalog/trending` | Top products by usage/view counts (used on homepage). |
+### 5. API Highlights
+
+| Endpoint                                         | Purpose                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `GET /api/search?q=&userId=`                     | Catalog search dengan filter `category`, `brand`, pagination (tanpa filter harga).               |
+| `GET /api/suggestions?q=`                        | Type‑ahead suggestions (products, brands, types, synonyms).                                      |
+| `POST /api/activity`                             | Tracking `SEARCH`, `CLICK_PRODUCT`, `VIEW_PRODUCT`, `ADD_TO_SCHEDULE`, dll.                      |
+| `GET /api/schedule?userId=`                      | List project schedules untuk user.                                                               |
+| `POST /api/schedule`                             | Buat schedule/project baru.                                                                      |
+| `GET/POST/PATCH/DELETE /api/schedule/items`      | Baca/tambah/update/hapus baris schedule.                                                         |
+| `POST /api/schedule/items/import`                | Import CSV (format plugin Material Scheduler: `code, kind_label, brand, subtype, notes, …`).     |
+| `POST /api/schedule/items/manual`                | Tambah satu baris material manual ke schedule.                                                   |
+| `GET /api/catalog/meta`                          | Category + brand metadata dengan product counts (untuk filter Search).                           |
+| `GET /api/catalog/categories`                    | Daftar kategori + subkategori (parent/child) untuk Brands UI.                                    |
+| `GET /api/brands`                                | List brand dengan metadata + subcategory summary.                                                |
+| `GET /api/brands/[id]` / `PATCH /api/brands/[id]`| Detail & update brand (website/email/contact).                                                   |
+| `PATCH /api/brands/[id]/subcategory/[subId]`     | Link brand ↔ subkategori + isi Sales Email / Sales Contact.                                      |
+| `GET/POST /api/products/[id]/*`                  | Edit deskripsi produk, media (gambar/datasheet/CAD), dan varian.                                |
 
 ---
 
-### Demo Scenario (happy path)
-1. **Home/Search page**
-   - Type `kursi` → see Herman Miller / Studio Kursi chairs (bilingual synonym works). Click a result → `CLICK_PRODUCT` recorded.
-   - Search `HPL Taco` → laminate SKUs from Taco appear.
-   - Search `downlight 3000K` → LuxBright/Philips lighting results.
-2. **Create schedule**
-   - Go to `/schedule`, create `Demo Showroom`, keep tab open (or refresh home page to fetch schedules).
-3. **Add from search results**
-   - On search page, use **Add to Schedule** button on three different products (material, lighting, furniture). Choose `Demo Showroom`, fill qty/UoM/notes.
-4. **Review schedule**
-   - Back on `/schedule`: `Schedule Items` tab shows rows with totals, summary cards update, export CSV & Excel buttons work.
-5. **Learning signal**
-   - Run 5–10 search/click/add actions focusing on one brand/type. Call `GET /api/insights/preferences?userId=anonymous` and see top weights reflect the behavior. Repeat search to notice re-ranked results for that brand/type.
+### 6. Typical Workflow
 
-Three core pages (Search, Product Schedule, Insights) render empty/load states cleanly and emit no console errors when the above scenario runs.
-
----
-
-### Next Steps / Nice-to-haves
-1. **Facet filters by variant attributes** – expose JSON attribute keys in the filter panel (e.g., wattage, color, thickness) and feed them into the Prisma query.
-2. **PostgreSQL FTS + trigram** – current search mimics relevance via `ILIKE` + synonyms; wire in `pg_trgm`/`tsvector` columns for better ranking once the DB extension is enabled.
-3. **Caching & performance** – cache catalog metadata and trending queries (Redis/Edge) to reduce DB hits on the home page.
-4. **Vector search (optional)** – embed product descriptions for semantic recall, but keep it on internal infra per requirements.
+1. **Buat project schedule**
+   - Buka tab **Projects** → klik `New Project` → isi nama & deskripsi.
+2. **Import dari SketchUp**
+   - Dari SketchUp plugin *Material Scheduler*, export CSV (header minimal `code, kind_label, brand, subtype, notes`).  
+   - Di halaman `/projects/[id]/schedule`, klik `Import CSV` dan pilih file tersebut.
+   - Semua baris akan muncul di tabel Items; tidak ada baris yang hilang.
+3. **Tambah / koreksi material**
+   - Jika perlu tambahkan baris manual via `Add Material`.
+   - Edit brand / notes / material type dari tabel; untuk SKU kritikal kamu bisa kaitkan ke catalog product detail lewat `Edit Product` (jika baris sudah punya `productId`).
+4. **Cari & lihat detail produk**
+   - Di tab **Search**, gunakan search bar + filter Category/Brand untuk menemukan produk.  
+   - Klik kartu untuk masuk ke halaman detail produk (gambar, atribut, resources) dan Add to Schedule project tertentu.
+5. **Kelola brand & subkategori**
+   - Di tab **Brands**, klik salah satu brand untuk mengatur website/email/contact serta subkategori (mis. `High Pressure Laminate`, `Homogeneous Tile`).  
+   - Gunakan field “link new subcategory” untuk menambah/bind subkategori baru.
 
 ---
 
-### Repository Notes
-- Only features relevant to catalog/search/schedule/insights remain; legacy demo-download code was removed.
-- Seed + API responses are fully real (no mock arrays). Update `prisma/seed.ts` to extend the catalog.
-- UI keeps the Z.ai scaffold styling, but all data wiring now hits Prisma/PostgreSQL for truthful results.
+### 7. Repository Notes
+
+- Fitur yang sudah di‑drop: dashboard Insights, trending API, total biaya (grand total) di schedule, dan editor `/schedule` lama.
+- Seed (`prisma/seed.ts`) hanya membersihkan database dan menyiapkan user `anonymous`; seluruh data nyata berasal dari CSV dan input user.
+- UI tetap mengikuti styling Z.ai; perubahan hanya pada wiring logic dan API supaya cocok dengan workflow *Material Scheduler* + katalog produk. 
+

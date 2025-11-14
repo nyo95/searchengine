@@ -13,8 +13,7 @@ async function main() {
     prisma.variant.deleteMany(),
     prisma.product.deleteMany(),
     prisma.productType.deleteMany(),
-    // brandSubcategory hanya ada setelah migrasi terbaru; kalau belum ada abaikan errornya.
-    prisma.brandSubcategory?.deleteMany().catch(() => Promise.resolve()),
+    prisma.brandSubcategory.deleteMany(),
     prisma.brand.deleteMany(),
     prisma.category.deleteMany(),
     prisma.searchSynonym.deleteMany(),
@@ -41,4 +40,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect()
   })
-

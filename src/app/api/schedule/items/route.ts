@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       notes,
     } = body
 
-    if (!scheduleId || !userId || !productId || !productName || !brandName || !sku || price === undefined) {
+    if (!scheduleId || !userId || !productId || !productName || !brandName || !sku) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         productName,
         brandName,
         sku,
-        price: new Prisma.Decimal(price),
+        price: typeof price === 'number' ? new Prisma.Decimal(price) : null,
         attributes: attributes || {},
         quantity: quantity ?? 1,
         unitOfMeasure: unitOfMeasure || 'pcs',
@@ -281,7 +281,7 @@ function serializeScheduleItem(item: {
   productName: string
   brandName: string
   sku: string
-  price: Prisma.Decimal
+  price: Prisma.Decimal | null
   attributes: Record<string, unknown>
   quantity: number
   unitOfMeasure: string
@@ -293,7 +293,7 @@ function serializeScheduleItem(item: {
   return {
     ...item,
     productId: item.productId,
-    price: Number(item.price),
+    price: item.price != null ? Number(item.price) : null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
   }

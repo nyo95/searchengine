@@ -1,7 +1,10 @@
+import { use } from 'react'
 import { ProjectScheduleClient } from '@/components/projects/project-schedule-client'
 
-type PageProps = { params: { id: string } }
+type PageParams = { id: string }
+type PageProps = { params: Promise<PageParams> }
 
 export default function ProjectSchedulePage({ params }: PageProps) {
-  return <ProjectScheduleClient scheduleId={params.id} />
+  const { id } = use(params)
+  return <ProjectScheduleClient scheduleId={id} />
 }

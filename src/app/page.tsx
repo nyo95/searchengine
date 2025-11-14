@@ -68,7 +68,6 @@ export default function HomePage() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('ALL')
-  const [priceRange, setPriceRange] = useState({ min: '', max: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [brands, setBrands] = useState<BrandOption[]>([])
@@ -147,7 +146,7 @@ export default function HomePage() {
         setLoadingSearch(false)
       }
     },
-    [priceRange.max, priceRange.min, selectedBrand, selectedCategory, toast],
+    [selectedBrand, selectedCategory, toast],
   )
 
   const updateSuggestions = useCallback(async (query: string) => {

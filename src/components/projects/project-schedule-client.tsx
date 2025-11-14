@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 type Item = {
   id: string
@@ -32,6 +34,8 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
   const [loading, setLoading] = useState(true)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const USER_ID = 'anonymous'
+  const [showAdd, setShowAdd] = useState(false)
+  const [newMaterial, setNewMaterial] = useState({ materialType: '', brandName: '', sku: '', notes: '' })
 
   useEffect(() => {
     fetchItems()
@@ -114,6 +118,86 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
               }} />
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>Import CSV</Button>
               <Button variant="outline" size="sm" disabled>Export PDF</Button>
+              <Dialog open={showAdd} onOpenChange={setShowAdd}>
+                <DialogTrigger asChild>
+                  <Button size="sm">Add Material</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Material</DialogTitle>
+                    <DialogDescription>Tambah satu baris material ke schedule ini.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Material Type</Label>
+                      <Input
+                        value={newMaterial.materialType}
+                        onChange={(e) => setNewMaterial((m) => ({ ...m, materialType: e.target.value }))}
+                        placeholder="High Pressure Laminate"
+                      />
+                    </div>
+                    <div>
+                      <Label>Brand</Label>
+                      <Input
+                        value={newMaterial.brandName}
+                        onChange={(e) => setNewMaterial((m) => ({ ...m, brandName: e.target.value }))}
+                        placeholder="Brand name"
+                      />
+                    </div>
+                    <div>
+                      <Label>SKU / Type</Label>
+                      <Input
+                        value={newMaterial.sku}
+                        onChange={(e) => setNewMaterial((m) => ({ ...m, sku: e.target.value }))}
+                        placeholder="SKU or type text"
+                      />
+                    </div>
+                    <div>
+                      <Label>Notes</Label>
+                      <Input
+                        value={newMaterial.notes}
+                        onChange={(e) => setNewMaterial((m) => ({ ...m, notes: e.target.value }))}
+                        placeholder="Optional notes"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
+                      <Button
+                        onClick={async () => {
+                          if (!newMaterial.brandName.trim() || !newMaterial.sku.trim()) return
+                          try {
+                            const res = await fetch('/api/schedule/items/manual', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                scheduleId,
+                                userId: USER_ID,
+                                materialType: newMaterial.materialType,
+                                brandName: newMaterial.brandName,
+                                sku: newMaterial.sku,
+                                notes: newMaterial.notes,
+                              }),
+                            })
+                            const data = await res.json()
+                            if (res.ok && data.item) {
+                              setItems((prev) => [data.item, ...prev])
+                              setShowAdd(false)
+                              setNewMaterial({ materialType: '', brandName: '', sku: '', notes: '' })
+                            } else {
+                              console.error('Add material failed', data)
+                            }
+                          } catch (err) {
+                            console.error('Add material error', err)
+                          }
+                        }}
+                        disabled={!newMaterial.brandName.trim() || !newMaterial.sku.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
@@ -171,4 +255,3 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
     </div>
   )
 }
-

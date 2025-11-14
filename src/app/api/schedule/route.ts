@@ -16,12 +16,6 @@ export async function GET(request: NextRequest) {
     const schedules = await db.projectSchedule.findMany({
       where: { userId: normalizedUser.id },
       include: {
-        items: {
-          select: {
-            price: true,
-            quantity: true,
-          },
-        },
         _count: {
           select: { items: true },
         },
@@ -37,10 +31,6 @@ export async function GET(request: NextRequest) {
         createdAt: schedule.createdAt.toISOString(),
         updatedAt: schedule.updatedAt.toISOString(),
         itemsCount: schedule._count.items,
-        totalAmount: schedule.items.reduce(
-          (total, item) => total + Number(item.price) * (item.quantity || 1),
-          0,
-        ),
       })),
     })
   } catch (error) {
@@ -76,7 +66,6 @@ export async function POST(request: NextRequest) {
         createdAt: schedule.createdAt.toISOString(),
         updatedAt: schedule.updatedAt.toISOString(),
         itemsCount: 0,
-        totalAmount: 0,
       },
     })
   } catch (error) {
