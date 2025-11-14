@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
+    "dev": "next dev -p 3000 --turbo",
+    "build": "next build && node scripts/postbuild-copy.mjs",
+    "start": "node scripts/start.mjs",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:up": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-db.ps1"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

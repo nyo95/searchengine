@@ -224,7 +224,6 @@ export function AddToScheduleDialog({
             {selectedVariant ? (
               <div className="mt-2 rounded-lg border bg-muted/40 p-3 text-sm">
                 <p className="font-medium">{selectedVariant.name}</p>
-                <p className="text-muted-foreground">Unit price: Rp {unitPrice.toLocaleString('id-ID')}</p>
                 <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
                   {Object.entries(selectedVariant.attributes || {}).map(([key, value]) => (
                     <span key={key}>
@@ -239,13 +238,7 @@ export function AddToScheduleDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Total Snapshot</p>
-            <p className="font-semibold">
-              Rp {(unitPrice * quantity).toLocaleString('id-ID')}
-            </p>
-          </div>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button onClick={handleSubmit} disabled={isSubmitting || schedules.length === 0}>
             {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Tambahkan

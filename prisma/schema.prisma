@@ -37,6 +37,8 @@ model Category {
   children    Category[] @relation("CategoryHierarchy")
   
   brands      Brand[]
+  productTypes ProductType[]
+  brandSubcategories BrandSubcategory[]
   products    Product[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -50,11 +52,14 @@ model Brand {
   description String?
   logo        String?  // URL to logo image
   website     String?
+  email       String?
+  contact     String?  // phone or contact person details
   categoryId  String
   
   category    Category @relation(fields: [categoryId], references: [id])
   productTypes ProductType[]
   products     Product[]
+  subcategories BrandSubcategory[]
   
   // Search optimization
   searchVector String? // For PostgreSQL full-text search
@@ -70,8 +75,10 @@ model ProductType {
   nameEn      String?  // English name
   description String?
   brandId     String
+  subcategoryId String?
   
   brand       Brand @relation(fields: [brandId], references: [id])
+  subcategory Category? @relation(fields: [subcategoryId], references: [id])
   products    Product[]
   
   // Category-specific attributes template
@@ -82,6 +89,19 @@ model ProductType {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Pivot: brands that operate in multiple subcategories
+model BrandSubcategory {
+  brandId       String
+  subcategoryId String
+  salesEmail    String?
+  salesContact  String?
+
+  brand       Brand    @relation(fields: [brandId], references: [id])
+  subcategory Category @relation(fields: [subcategoryId], references: [id])
+
+  @@id([brandId, subcategoryId])
 }
 
 // Products (SKU level)

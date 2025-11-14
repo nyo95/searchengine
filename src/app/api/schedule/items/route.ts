@@ -91,6 +91,17 @@ export async function POST(request: NextRequest) {
       data: { usageCount: { increment: 1 } },
     })
 
+    // Lightweight learning signal
+    await db.userActivity.create({
+      data: {
+        userId: normalizedUser.id,
+        type: 'ADD_TO_SCHEDULE',
+        productId,
+        variantId,
+        brandId,
+      } as any,
+    })
+
     return NextResponse.json({ item: serializeScheduleItem(newItem) })
   } catch (error) {
     if (error instanceof HttpError) {
@@ -136,6 +147,117 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { itemId, userId, updates, upsert } = body as {
+      itemId: string
+      userId?: string
+      updates: Partial<{
+        productName: string
+        brandName: string
+        sku: string
+        attributes: Record<string, unknown>
+        quantity: number
+        unitOfMeasure: string
+        area: string | null
+        notes: string | null
+        materialType?: string
+      }>
+      upsert?: boolean
+    }
+
+    if (!itemId || !updates) {
+      return NextResponse.json({ error: 'itemId and updates required' }, { status: 400 })
+    }
+
+    const item = await db.scheduleItem.findUnique({ where: { id: itemId } })
+    if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+
+    if (userId) {
+      await ensureScheduleOwnership(item.scheduleId, userId)
+    }
+
+    let productId: string | undefined
+    // Optional minimal upsert to main catalog based on brand/materialType/sku
+    if (upsert && (updates.brandName || updates.sku || updates.materialType)) {
+      const brandName = updates.brandName?.trim() || item.brandName
+      const sku = updates.sku?.trim() || item.sku
+      const materialType = updates.materialType?.trim()
+
+      // Determine category by heuristic
+      const catName = classifyCategoryFromType(materialType)
+      const category = await db.category.findFirst({ where: { name: catName } })
+      const categoryId = category?.id
+
+      // Brand
+      const brand = await db.brand.upsert({
+        where: { name: brandName },
+        update: {},
+        create: { name: brandName, nameEn: brandName, categoryId: categoryId ?? (await ensureDefaultMaterialCategory()).id },
+      })
+
+      // ProductType is per brand
+      const ptName = materialType || 'Generic'
+      let productType = await db.productType.findFirst({ where: { name: ptName, brandId: brand.id } })
+      if (!productType) {
+        productType = await db.productType.create({ data: { name: ptName, brandId: brand.id } })
+      }
+
+      const existing = await db.product.findFirst({ where: { sku, brandId: brand.id } })
+      const product =
+        existing ||
+        (await db.product.create({
+          data: {
+            sku,
+            name: updates.productName || item.productName,
+            productTypeId: productType.id,
+            brandId: brand.id,
+            categoryId: categoryId ?? null,
+          },
+        }))
+
+      productId = product.id
+    }
+
+    const updated = await db.scheduleItem.update({
+      where: { id: itemId },
+      data: {
+        productId: productId ?? item.productId,
+        productName: updates.productName ?? item.productName,
+        brandName: updates.brandName ?? item.brandName,
+        sku: updates.sku ?? item.sku,
+        attributes: (updates.attributes as any) ?? item.attributes,
+        quantity: updates.quantity ?? item.quantity,
+        unitOfMeasure: updates.unitOfMeasure ?? item.unitOfMeasure,
+        area: updates.area ?? item.area,
+        notes: updates.notes ?? item.notes,
+      },
+    })
+
+    return NextResponse.json({ item: serializeScheduleItem(updated) })
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    console.error('Schedule item update error:', error)
+    return NextResponse.json({ error: 'Failed to update schedule item' }, { status: 500 })
+  }
+}
+
+async function ensureDefaultMaterialCategory() {
+  const existing = await db.category.findFirst({ where: { name: 'Material' } })
+  if (existing) return existing
+  return db.category.create({ data: { name: 'Material', nameEn: 'Material' } })
+}
+
+function classifyCategoryFromType(type?: string | null) {
+  const t = (type || '').toLowerCase()
+  if (/downlight|spotlight|lampu/.test(t)) return 'Lighting'
+  if (/chair|furniture|sofa|kursi|meja/.test(t)) return 'Furniture'
+  return 'Material'
+}
+
 async function ensureScheduleOwnership(scheduleId: string, userId: string) {
   const schedule = await db.projectSchedule.findUnique({
     where: { id: scheduleId },
@@ -170,6 +292,7 @@ function serializeScheduleItem(item: {
 }) {
   return {
     ...item,
+    productId: item.productId,
     price: Number(item.price),
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
