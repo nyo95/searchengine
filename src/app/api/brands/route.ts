@@ -57,3 +57,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { name, nameEn, categoryId, website, email, contact } = body as {
+      name: string
+      nameEn?: string
+      categoryId: string
+      website?: string
+      email?: string
+      contact?: string
+    }
+
+    if (!name?.trim() || !categoryId?.trim()) {
+      return NextResponse.json({ error: 'name and categoryId are required' }, { status: 400 })
+    }
+
+    const brand = await db.brand.create({
+      data: {
+        name: name.trim(),
+        nameEn: nameEn?.trim() || name.trim(),
+        categoryId,
+        website: website?.trim() || null,
+        email: email?.trim() || null,
+        contact: contact?.trim() || null,
+      },
+    })
+
+    return NextResponse.json({ brand })
+  } catch (e) {
+    console.error('Brand create error', e)
+    return NextResponse.json({ error: 'Failed to create brand' }, { status: 500 })
+  }
+}

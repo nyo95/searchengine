@@ -85,6 +85,7 @@ function buildProductWhereInput(tokens: Set<string>, filters: SearchFilters): Pr
       { keywords: { has: token.toLowerCase() } },
       { brand: { name: { contains: token, mode: 'insensitive' } } },
       { productType: { name: { contains: token, mode: 'insensitive' } } },
+      { category: { name: { contains: token, mode: 'insensitive' } } },
       { brand: { category: { name: { contains: token, mode: 'insensitive' } } } },
     ])
   }
@@ -103,4 +104,3 @@ function buildProductWhereInput(tokens: Set<string>, filters: SearchFilters): Pr
   if (andFilters.length) where.AND = andFilters
   return where
 }
-

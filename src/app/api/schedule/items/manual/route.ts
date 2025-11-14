@@ -167,4 +167,3 @@ function serializeScheduleItem(item: {
     updatedAt: item.updatedAt.toISOString(),
   }
 }
-

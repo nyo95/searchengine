@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
             brandName: rowBrand || '',
             sku: rowSku || '',
             price: 0,
-            attributes: materialType ? { materialType } : {},
+            attributes: {
+              ...(materialType ? { materialType } : {}),
+              ...(code ? { code } : {}),
+            },
             quantity,
             unitOfMeasure,
             area,

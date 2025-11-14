@@ -276,7 +276,7 @@ async function ensureScheduleOwnership(scheduleId: string, userId: string) {
 function serializeScheduleItem(item: {
   id: string
   scheduleId: string
-  productId: string
+  productId: string | null
   variantId: string | null
   productName: string
   brandName: string

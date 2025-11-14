@@ -205,6 +205,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
               <UITable>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Code</TableHead>
                     <TableHead>Material Type</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>SKU</TableHead>
@@ -216,8 +217,16 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                   {items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Input defaultValue={String(item.attributes?.materialType || '')}
-                          onBlur={(e) => saveInline(item.id, { materialType: e.target.value })} />
+                        <Input
+                          value={String((item.attributes && item.attributes.code) || '')}
+                          readOnly
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={String(item.attributes?.materialType || '')}
+                          readOnly
+                        />
                       </TableCell>
                       <TableCell>
                         <select defaultValue={item.brandName} className="border rounded px-2 py-1 w-full"
@@ -229,7 +238,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                         </select>
                       </TableCell>
                       <TableCell>
-                        <Input defaultValue={item.sku} onBlur={(e) => saveInline(item.id, { sku: e.target.value })} />
+                        <Input value={item.sku} readOnly />
                       </TableCell>
                       <TableCell>
                         <Input defaultValue={item.notes || ''} onBlur={(e) => saveInline(item.id, { notes: e.target.value })} />
