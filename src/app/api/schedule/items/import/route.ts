@@ -170,7 +170,8 @@ async function minimalLinkProduct({ brandName, sku, materialType }: { brandName:
         data: { name: materialType.trim(), nameEn: materialType.trim(), parentId: parent.id },
       })
     }
-    subcategoryId = sub.id
+      subcategoryId = sub.id
+    await ensureSubcategorySynonyms(sub.name)
   }
 
   const brand = await db.brand.upsert({
@@ -224,4 +225,21 @@ function classifyCategoryFromType(type?: string | null) {
   if (/downlight|spotlight|lampu/.test(t)) return 'Lighting'
   if (/chair|furniture|sofa|kursi|meja/.test(t)) return 'Furniture'
   return 'Material'
+}
+
+async function ensureSubcategorySynonyms(name?: string | null) {
+  const n = (name || '').trim()
+  if (!n) return
+  const parts = n.split(/\s+/).filter(Boolean)
+  if (parts.length < 2) return
+  const slug = parts.map((p) => p[0]).join('').toLowerCase() // e.g. High Pressure Laminate -> hpl
+  if (slug.length < 2) return
+
+  const existing = await db.searchSynonym.findFirst({
+    where: { term: slug, synonym: n },
+  })
+  if (!existing) {
+    await db.searchSynonym.create({ data: { term: slug, synonym: n } })
+    await db.searchSynonym.create({ data: { term: n, synonym: slug } })
+  }
 }

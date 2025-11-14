@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Share2,
+  Pencil,
 } from 'lucide-react'
 import { SerializableProduct } from '@/lib/serializers/product'
 import { Button } from '@/components/ui/button'
@@ -60,8 +61,7 @@ export function ProductDetailClient({
     [product.variants, selectedVariantId],
   )
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [quantity, setQuantity] = useState(1)
-  const [scheduleData, setScheduleData] = useState({ area: '', notes: '' })
+  const [scheduleData, setScheduleData] = useState({ notes: '' })
   const galleryImages = product.images.length
     ? product.images
     : [{ id: 'placeholder', url: '/api/placeholder/400/400', label: 'Placeholder', metadata: null, variantId: null }]
@@ -76,6 +76,17 @@ export function ProductDetailClient({
   const [cropFile, setCropFile] = useState<File | null>(null)
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState(product.name)
+  const [datasheets, setDatasheets] = useState(product.datasheets)
+  const [cadFiles, setCadFiles] = useState(product.cadFiles)
+  const [resourceForm, setResourceForm] = useState({ type: 'DATASHEET', url: '', label: '' })
+  const [savingResource, setSavingResource] = useState(false)
+  const [usageProjects, setUsageProjects] = useState<
+    { id: string; name: string; description: string | null }[]
+  >([])
+  const [usageLoaded, setUsageLoaded] = useState(false)
+  const [usageDialogOpen, setUsageDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!selectedScheduleId && schedules.length) {
@@ -106,6 +117,27 @@ export function ProductDetailClient({
 
   // View tracking removed per lean scope (only ADD_TO_SCHEDULE is tracked)
 
+  useEffect(() => {
+    if (usageLoaded) return
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/products/${product.id}/usage`)
+        if (!res.ok) return
+        const data = await res.json()
+        setUsageProjects(
+          (data.schedules || []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            description: s.description ?? null,
+          })),
+        )
+        setUsageLoaded(true)
+      } catch {
+        // ignore usage errors
+      }
+    })()
+  }, [product.id, usageLoaded])
+
   const handleAddToSchedule = async () => {
     if (!selectedScheduleId) {
       toast({
@@ -128,11 +160,12 @@ export function ProductDetailClient({
           productName: product.name,
           brandName: product.brand.name,
           sku: product.sku,
-          price: selectedVariant?.price ?? product.basePrice ?? 0,
+          // price is optional in schedule; treat as reference only
+          price: null,
           attributes: selectedVariant?.attributes ?? {},
-          quantity,
+          quantity: 1,
           unitOfMeasure: 'pcs',
-          area: scheduleData.area,
+          area: null,
           notes: scheduleData.notes,
         }),
       })
@@ -157,12 +190,68 @@ export function ProductDetailClient({
     }
   }
 
-  const formatPrice = (price: number | null | undefined) => {
-    if (price === null || price === undefined) return 'N/A'
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-    }).format(price)
+  const handleSaveName = async () => {
+    const next = nameDraft.trim()
+    if (!next || next === product.name) {
+      setEditingName(false)
+      setNameDraft(product.name)
+      return
+    }
+    try {
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: next }),
+      })
+      if (!res.ok) throw new Error('Gagal menyimpan nama produk')
+      setEditingName(false)
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Gagal menyimpan',
+        description: 'Nama produk tidak dapat diperbarui.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleAddResource = async () => {
+    const url = resourceForm.url.trim()
+    const label = resourceForm.label.trim()
+    if (!url) return
+    setSavingResource(true)
+    try {
+      const res = await fetch(`/api/products/${product.id}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          label: label || undefined,
+          type: resourceForm.type,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.media) {
+        throw new Error(data?.error || 'Gagal menambah resource')
+      }
+      const media = data.media as { id: string; url: string; label?: string | null; type: string }
+      if (media.type === 'DATASHEET') {
+        setDatasheets((prev) => [...prev, { id: media.id, url: media.url, label: media.label ?? null, metadata: null }])
+      } else if (media.type === 'CAD') {
+        setCadFiles((prev) => [...prev, { id: media.id, url: media.url, label: media.label ?? null, metadata: null }])
+      }
+      setResourceForm({ type: resourceForm.type, url: '', label: '' })
+      toast({ title: 'Resource ditambahkan', description: 'Link berhasil disimpan.' })
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Gagal menambah resource',
+        description: 'Periksa URL lalu coba lagi.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingResource(false)
+    }
   }
 
   return (
@@ -231,7 +320,40 @@ export function ProductDetailClient({
             <div>
               <Badge variant="secondary">{product.brand.name}</Badge>
               {product.category?.name && <Badge variant="outline" className="ml-2">{product.category.name}</Badge>}
-              <h1 className="text-3xl font-bold mt-4">{product.name}</h1>
+              <div className="flex items-center gap-2 mt-4">
+                <h1 className="text-3xl font-bold">{editingName ? nameDraft : product.name}</h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setNameDraft(product.name)
+                    setEditingName((v) => !v)
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              </div>
+              {editingName && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                  />
+                  <Button size="sm" onClick={handleSaveName}>
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingName(false)
+                      setNameDraft(product.name)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
               {product.nameEn && <p className="text-muted-foreground">{product.nameEn}</p>}
               <p className="text-sm text-muted-foreground mt-2">SKU: {product.sku}</p>
               {product.description && <p className="mt-4 text-muted-foreground">{product.description}</p>}
@@ -243,46 +365,6 @@ export function ProductDetailClient({
                 <CardDescription>Select variant and schedule details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {product.variants.length > 0 && (
-                  <div>
-                    <Label>Variants</Label>
-                    <Select value={selectedVariant?.id ?? ''} onValueChange={setSelectedVariantId}>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Select variant" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {product.variants.map((variant) => (
-                          <SelectItem key={variant.id} value={variant.id}>
-                            {variant.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={quantity}
-                      onChange={(event) => setQuantity(parseInt(event.target.value, 10) || 1)}
-                      className="mt-2"
-                    />
-                  </div>
-                <div>
-                  <Label>Area / Zone</Label>
-                  <Input
-                    value={scheduleData.area}
-                    onChange={(event) => setScheduleData((prev) => ({ ...prev, area: event.target.value }))}
-                    className="mt-2"
-                    placeholder="e.g. Main Office"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
                 <Label>Project Schedule</Label>
                 <div className="flex gap-2">
@@ -503,8 +585,8 @@ export function ProductDetailClient({
                     Datasheets
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {product.datasheets.length > 0 ? (
-                      product.datasheets.map((datasheet) => (
+                    {datasheets.length > 0 ? (
+                      datasheets.map((datasheet) => (
                         <Button
                           key={datasheet.id}
                           variant="outline"
@@ -527,8 +609,8 @@ export function ProductDetailClient({
                     CAD Files
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {product.cadFiles.length > 0 ? (
-                      product.cadFiles.map((cad) => (
+                    {cadFiles.length > 0 ? (
+                      cadFiles.map((cad) => (
                         <Button key={cad.id} variant="outline" size="sm" asChild>
                           <a href={cad.url} target="_blank" rel="noreferrer">
                             {cad.label ?? 'CAD'}
@@ -538,6 +620,54 @@ export function ProductDetailClient({
                     ) : (
                       <p className="text-sm text-muted-foreground">No CAD files available.</p>
                     )}
+                  </div>
+                </div>
+                <div className="border-t pt-4 space-y-2">
+                  <h4 className="font-semibold text-sm">Tambah Resource</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-xs">Tipe</Label>
+                      <Select
+                        value={resourceForm.type}
+                        onValueChange={(v) => setResourceForm((f) => ({ ...f, type: v as 'DATASHEET' | 'CAD' }))}
+                      >
+                        <SelectTrigger className="h-8 mt-1">
+                          <SelectValue placeholder="Pilih tipe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DATASHEET">Datasheet</SelectItem>
+                          <SelectItem value="CAD">CAD File</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">URL</Label>
+                      <Input
+                        value={resourceForm.url}
+                        onChange={(e) => setResourceForm((f) => ({ ...f, url: e.target.value }))}
+                        className="mt-1"
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Label</Label>
+                      <Input
+                        value={resourceForm.label}
+                        onChange={(e) => setResourceForm((f) => ({ ...f, label: e.target.value }))}
+                        className="mt-1"
+                        placeholder="Optional label"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={savingResource || !resourceForm.url.trim()}
+                      onClick={handleAddResource}
+                    >
+                      {savingResource ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Save Resource
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -572,6 +702,25 @@ export function ProductDetailClient({
                   <p className="text-2xl font-semibold mt-2">{product.variants.length}</p>
                   <p className="text-xs text-muted-foreground">Total available configurations</p>
                 </div>
+                {usageProjects.length > 0 && (
+                  <div className="rounded-lg border p-4 md:col-span-3">
+                    <h4 className="text-sm text-muted-foreground">Used In Projects</h4>
+                    <p className="text-sm mt-2">
+                      {(() => {
+                        const names = usageProjects.map((p) => p.name)
+                        if (names.length === 1) return names[0]
+                        if (names.length === 2) return `${names[0]}, ${names[1]}`
+                        const [first, second, ...rest] = names
+                        return `${first}, ${second}, and ${rest.length} other project${rest.length > 1 ? 's' : ''}`
+                      })()}
+                    </p>
+                    <div className="mt-2">
+                      <Button variant="outline" size="sm" onClick={() => setUsageDialogOpen(true)}>
+                        View all projects
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -618,6 +767,29 @@ export function ProductDetailClient({
           </div>
         </section>
       </main>
+
+      <Dialog open={usageDialogOpen} onOpenChange={setUsageDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Projects using this material</DialogTitle>
+            <DialogDescription>Daftar project schedule yang memakai SKU ini.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {usageProjects.length > 0 ? (
+              usageProjects.map((p) => (
+                <div key={p.id} className="flex items-center justify-between border-b last:border-b-0 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{p.name}</p>
+                    {p.description && <p className="text-xs text-muted-foreground">{p.description}</p>}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Belum ada project yang menggunakan material ini.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

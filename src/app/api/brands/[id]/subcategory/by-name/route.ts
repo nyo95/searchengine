@@ -22,6 +22,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
     }
 
+    await ensureSubcategorySynonyms(sub.name)
+
     const link = await db.brandSubcategory.upsert({
       where: { brandId_subcategoryId: { brandId: brand.id, subcategoryId: sub.id } },
       update: {},
@@ -32,6 +34,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   } catch (e) {
     console.error('Brand subcategory-by-name error', e)
     return NextResponse.json({ error: 'Failed to link subcategory' }, { status: 500 })
+  }
+}
+
+async function ensureSubcategorySynonyms(name?: string | null) {
+  const n = (name || '').trim()
+  if (!n) return
+  const parts = n.split(/\s+/).filter(Boolean)
+  if (parts.length < 2) return
+  const slug = parts.map((p) => p[0]).join('').toLowerCase() // e.g. High Pressure Laminate -> hpl
+  if (slug.length < 2) return
+
+  const existing = await db.searchSynonym.findFirst({
+    where: { term: slug, synonym: n },
+  })
+  if (!existing) {
+    await db.searchSynonym.create({ data: { term: slug, synonym: n } })
+    await db.searchSynonym.create({ data: { term: n, synonym: slug } })
   }
 }
 
