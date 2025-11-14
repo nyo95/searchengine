@@ -2,17 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Eye, Filter, Loader2, Package, RefreshCw, Search } from 'lucide-react'
+import { Eye, Loader2, Package, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { AspectRatio } from '@/components/ui/aspect-ratio'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSchedules } from '@/hooks/use-schedules'
 import { AddToScheduleDialog } from '@/components/schedule/add-to-schedule-dialog'
 
@@ -68,7 +67,6 @@ export default function HomePage() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('ALL')
-  const [showFilters, setShowFilters] = useState(false)
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [brands, setBrands] = useState<BrandOption[]>([])
   
@@ -181,7 +179,7 @@ export default function HomePage() {
     }, 300)
 
     return () => clearTimeout(timeout)
-  }, [performSearch, searchQuery, updateSuggestions])
+  }, [performSearch, searchQuery, updateSuggestions, selectedCategory, selectedBrand])
 
   const fetchCatalogMeta = async () => {
     try {
@@ -217,99 +215,49 @@ export default function HomePage() {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        <section className="space-y-4">
-          <div className="space-y-3">
-            <div className="relative">
-              <Input
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setShowSuggestions(true)
-                }}
-                placeholder='Contoh: "kursi", "HPL Taco", "downlight 3000K"'
-                className="pl-10 py-6 text-lg"
-                onFocus={() => suggestions.length && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    handleManualSearch()
-                  }
-                }}
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-20 mt-2 w-full rounded-xl border bg-white shadow-lg overflow-hidden">
-                  {suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      className="w-full text-left px-4 py-2 hover:bg-muted text-sm"
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        setSearchQuery(suggestion)
-                        setShowSuggestions(false)
-                        handleManualSearch()
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant={showFilters ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowFilters((prev) => !prev)}
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleManualSearch} disabled={loadingSearch}>
-              {loadingSearch ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Searching…
-                </>
-              ) : (
-                'Apply'
-              )}
-            </Button>
-          </div>
-
-          {showFilters && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Filter detail</CardTitle>
-                <CardDescription>Persempit hasil berdasarkan kategori, brand, atau rentang harga.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="space-y-3">
-                  <Label>Kategori</Label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                    {categories.map((category) => (
-                      <label key={category.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={selectedCategory === category.id}
-                          onCheckedChange={(checked) => setSelectedCategory(checked ? category.id : '')}
-                        />
-                        <span>
-                          {category.name}{' '}
-                          <span className="text-xs text-muted-foreground">
+    <div className="min-h-screen bg-muted/20">
+      <main className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Kolom Filter */}
+          <aside className="lg:col-span-1">
+            <div className="sticky top-8 space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-4">Filters</h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Kategori</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    <div className="max-h-60 overflow-y-auto pr-2">
+                      {categories.map((category) => (
+                        <button
+                          key={category.id}
+                          onClick={() => setSelectedCategory(selectedCategory === category.id ? '' : category.id)}
+                          className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
+                            selectedCategory === category.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <span className="text-sm font-medium">{category.name}</span>{' '}
+                          <span className={`text-xs ${
+                            selectedCategory === category.id
+                              ? 'text-primary-foreground/80'
+                              : 'text-muted-foreground'
+                          }`}>
                             ({category.productsCount})
                           </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label>Brand</Label>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Brand</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <Select value={selectedBrand} onValueChange={setSelectedBrand}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Semua brand" />
@@ -323,136 +271,204 @@ export default function HomePage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                {/* Harga bukan fokus utama; sembunyikan filter rentang harga */}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Projects summary card removed per requirement */}
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Catalog Results</p>
-              <h2 className="text-2xl font-bold">Search Results</h2>
-              {totalResults > 0 && (
-                <p className="text-sm text-muted-foreground">{totalResults} item ditemukan</p>
-              )}
-            </div>
-          </div>
-
-          {loadingSearch && (
-            <Card>
-              <CardContent className="p-6 flex items-center gap-3 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Menelusuri katalog…
-              </CardContent>
-            </Card>
-          )}
-
-          {!loadingSearch && searchResults.length === 0 && (
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                Ketik kata kunci minimal 2 karakter untuk melihat hasil pencarian.
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {searchResults.map((product) => (
-              <Card
-                key={product.id}
-                className="hover:shadow-md transition cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => handleNavigate(product.id)}
-              >
-                <CardContent className="p-5 flex gap-4">
-                  <div className="w-36 h-36 rounded-xl bg-muted overflow-hidden flex-shrink-0">
-                    <img
-                      src={product.primaryImage || '/api/placeholder/200/200'}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{product.brandName}</Badge>
-                      {product.categoryName && <Badge variant="outline">{product.categoryName}</Badge>}
-                      <Badge variant="outline">{product.productTypeName}</Badge>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">{product.name}</h3>
-                      {product.nameEn && <p className="text-sm text-muted-foreground">{product.nameEn}</p>}
-                    </div>
-                    <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
-                    {/* Harga bukan fokus utama; sembunyikan range harga */}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{product.viewCount} views</span>
-                      <span>{product.usageCount} schedule adds</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleNavigate(product.id)
-                        }}
-                      >
-                        Detail produk
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          window.location.href = `/product/${product.id}`
-                        }}
-                      >
-                        Edit Product
-                      </Button>
-                      <AddToScheduleDialog
-                        trigger={
-                          <Button
-                            size="sm"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            Tambahkan
-                          </Button>
-                        }
-                        product={product}
-                        userId={USER_ID}
-                        schedules={schedules}
-                        isScheduleLoading={isScheduleLoading}
-                        onRefreshSchedules={refreshSchedules}
-                      />
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-
-          {hasMore && (
-            <div className="flex justify-center">
-              <Button variant="outline" onClick={handleLoadMore} disabled={loadingSearch}>
-                {loadingSearch ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Muat lebih banyak
-              </Button>
             </div>
-          )}
-        </section>
+          </aside>
 
-        <Separator />
+          {/* Konten Utama */}
+          <div className="lg:col-span-3 space-y-8">
+            <section className="space-y-4 bg-background p-6 rounded-xl shadow-sm">
+              <div className="space-y-3">
+                <div className="relative">
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value)
+                      setShowSuggestions(true)
+                    }}
+                    placeholder='Contoh: "kursi", "HPL Taco", "downlight 3000K"'
+                    className="pl-10 py-6 text-lg"
+                    onFocus={() => suggestions.length && setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        handleManualSearch()
+                      }
+                    }}
+                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  {showSuggestions && suggestions.length > 0 && (
+                    <Card className="absolute z-20 mt-2 w-full shadow-lg">
+                      <CardContent className="p-2">
+                        {suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            className="w-full text-left px-3 py-2 rounded-md hover:bg-muted flex items-center gap-3"
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              setSearchQuery(suggestion)
+                              setShowSuggestions(false)
+                              handleManualSearch()
+                            }}
+                          >
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm">{suggestion}</span>
+                          </button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div></div>
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight">Search Results</h2>
+                  {totalResults > 0 && (
+                    <p className="text-muted-foreground">{totalResults} item ditemukan</p>
+                  )}
+                </div>
+              </div>
+
+              {loadingSearch && searchResults.length === 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {[...Array(6)].map((_, i) => (
+                    <Card key={i} className="flex flex-col">
+                      <CardHeader>
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </CardHeader>
+                      <CardContent className="flex-grow">
+                        <Skeleton className="w-full h-[200px] rounded-md" />
+                        <div className="space-y-2 mt-4">
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-2/3" />
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <Skeleton className="h-10 w-full" />
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {!loadingSearch && searchResults.length === 0 && (
+                <Card>
+                  <CardContent className="p-10 text-center">
+                    <Package className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h3 className="mt-4 text-lg font-medium">No results found</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Ketik kata kunci minimal 2 karakter untuk melihat hasil pencarian.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <TooltipProvider>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {searchResults.map((product) => (
+                    <Card
+                      key={product.id}
+                      className="overflow-hidden transition-shadow duration-300 hover:shadow-xl flex flex-col"
+                    >
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg mb-2 leading-snug">
+                              <a
+                                href={`/product/${product.id}`}
+                                className="hover:text-primary transition-colors"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  handleNavigate(product.id)
+                                }}
+                              >
+                                {product.name}
+                              </a>
+                            </CardTitle>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">{product.brandName}</Badge>
+                              {product.categoryName && <Badge variant="outline">{product.categoryName}</Badge>}
+                            </div>
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-default">
+                                <Eye className="w-4 h-4"/>
+                                <span>{product.viewCount}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{product.viewCount} views</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex-grow">
+                        <button
+                          className="w-full block"
+                          onClick={() => handleNavigate(product.id)}
+                        >
+                          <AspectRatio ratio={4 / 3}>
+                            <img
+                              src={product.primaryImage || '/api/placeholder/400/300'}
+                              alt={product.name}
+                              className="w-full h-full object-cover rounded-md hover:scale-105 transition-transform duration-300"
+                            />
+                          </AspectRatio>
+                        </button>
+                        <CardDescription className="mt-4 text-sm">
+                          {product.nameEn ? product.nameEn : 'No description available.'}
+                        </CardDescription>
+                      </CardContent>
+                      <CardFooter className="bg-muted/30 p-4 flex justify-end gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              window.location.href = `/product/${product.id}`
+                            }}
+                          >
+                            Edit
+                        </Button>
+                        <AddToScheduleDialog
+                          trigger={
+                            <Button
+                              size="sm"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              Add to Schedule
+                            </Button>
+                          }
+                          product={product}
+                          userId={USER_ID}
+                          schedules={schedules}
+                          isScheduleLoading={isScheduleLoading}
+                          onRefreshSchedules={refreshSchedules}
+                        />
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              </TooltipProvider>
+
+              {hasMore && (
+                <div className="flex justify-center mt-6">
+                  <Button variant="outline" onClick={handleLoadMore} disabled={loadingSearch}>
+                    {loadingSearch ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Muat lebih banyak
+                  </Button>
+                </div>
+              )}
+            </section>
           </div>
-        </section>
+        </div>
       </main>
     </div>
   )
