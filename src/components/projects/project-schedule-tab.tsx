@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Info, Loader2, MinusCircle, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,11 +83,10 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
   const [isEditingName, setIsEditingName] = useState(false)
   const [savingSchedule, setSavingSchedule] = useState(false)
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
-  const [addingMaterial, setAddingMaterial] = useState(false)
+  const [addingScheduleRow, setAddingScheduleRow] = useState(false)
   const [skuOptions, setSkuOptions] = useState<Record<string, CatalogProductOption[]>>({})
   const [skuLoadingState, setSkuLoadingState] = useState<Record<string, boolean>>({})
   const [manualProductRowId, setManualProductRowId] = useState<string | null>(null)
-  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({})
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newScheduleName, setNewScheduleName] = useState('')
   const [newScheduleDescription, setNewScheduleDescription] = useState('')
@@ -364,7 +363,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
     })
   }
 
-  const handleAddMaterial = async () => {
+  const handleAddScheduleRow = async () => {
     if (!selectedScheduleId) {
       toast({
         title: 'Pilih project dahulu',
@@ -373,7 +372,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
       })
       return
     }
-    setAddingMaterial(true)
+    setAddingScheduleRow(true)
     try {
       const response = await fetch('/api/schedule/items/manual', {
         method: 'POST',
@@ -385,7 +384,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
       const newItem = data.item as ScheduleItem
       setItems((prev) => [newItem, ...prev])
       setScheduleDetail((prev) => (prev ? { ...prev, itemsCount: prev.itemsCount + 1 } : prev))
-      toast({ title: 'Baris material baru ditambahkan' })
+      toast({ title: 'Baris schedule baru ditambahkan' })
     } catch (error) {
       console.error(error)
       toast({
@@ -394,7 +393,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
         variant: 'destructive',
       })
     } finally {
-      setAddingMaterial(false)
+      setAddingScheduleRow(false)
     }
   }
 
@@ -537,8 +536,8 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
               >
                 {loadingItems ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh Items'}
               </Button>
-              <Button size="sm" onClick={handleAddMaterial} disabled={addingMaterial || !selectedScheduleId}>
-                {addingMaterial ? (
+              <Button size="sm" onClick={handleAddScheduleRow} disabled={addingScheduleRow || !selectedScheduleId}>
+                {addingScheduleRow ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Menambahkan…
@@ -546,7 +545,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                 ) : (
                   <>
                     <Plus className="mr-2 h-4 w-4" />
-                    Add Material
+                    Add Schedule
                   </>
                 )}
               </Button>
@@ -565,14 +564,13 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10" />
                       <TableHead>Kode</TableHead>
-                      <TableHead>Nama Material</TableHead>
                       <TableHead>Kategori</TableHead>
                       <TableHead>Material Type</TableHead>
                       <TableHead>Brand</TableHead>
-                      <TableHead>SKU / Product</TableHead>
-                      <TableHead className="w-[160px]">Notes</TableHead>
-                      <TableHead className="w-[220px] text-right">Actions</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead className="w-[140px] text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -587,37 +585,43 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                       const attributeCategoryName = (item.attributes as any)?.categoryName as string | undefined
                       const currentCategoryId = attributeCategoryId || typeInfo?.categoryId || ''
                       const categoryLabel = attributeCategoryName || typeInfo?.categoryName
-                      const currentNameValue = nameDrafts[item.id] ?? item.productName ?? ''
                       const filteredProductTypes =
                         currentCategoryId && productTypes.some((type) => type.categoryId === currentCategoryId)
                           ? productTypes.filter((type) => type.categoryId === currentCategoryId)
                           : productTypes
                       return (
                         <TableRow key={item.id}>
-                          <TableCell className="font-mono text-sm">{code}</TableCell>
+                          <TableCell className="text-center">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  disabled={isSaving}
+                                >
+                                  <MinusCircle className="h-4 w-4 text-destructive" />
+                                  <span className="sr-only">Delete row</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Hapus baris schedule ini</TooltipContent>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell>
-                            <Input
-                              value={currentNameValue}
-                              onChange={(event) =>
-                                setNameDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))
-                              }
-                              onBlur={() => {
-                                const trimmed = currentNameValue.trim()
-                                if (!trimmed || trimmed === item.productName) {
-                                  if (!trimmed && nameDrafts[item.id]) {
-                                    setNameDrafts((prev) => {
-                                      const nextDrafts = { ...prev }
-                                      delete nextDrafts[item.id]
-                                      return nextDrafts
-                                    })
-                                  }
-                                  return
-                                }
-                                handleItemUpdate(item.id, { productName: trimmed })
-                              }}
-                              placeholder="Nama material"
-                              disabled={isSaving}
-                            />
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm">{code}</span>
+                              {item.notes ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs text-sm">{item.notes}</TooltipContent>
+                                </Tooltip>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {item.productName || 'Belum terhubung ke katalog'}
+                            </p>
                           </TableCell>
                           <TableCell>
                             <Select
@@ -712,72 +716,77 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={item.productId || '__none__'}
-                              onValueChange={(value) => {
-                                if (value === '__none__') return
-                                handleSkuChange(item.id, value)
-                              }}
-                              disabled={!rowOptions.length || isSaving}
-                            >
-                              <SelectTrigger>
-                                <SelectValue
-                                  placeholder={
-                                    skuLoading ? 'Memuat SKU…' : !rowOptions.length ? 'Pilih brand dan tipe' : 'Pilih SKU'
-                                  }
-                                />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__" disabled>
-                                  Pilih SKU
-                                </SelectItem>
-                                {rowOptions.map((option) => (
-                                  <SelectItem key={option.id} value={option.id}>
-                                    {option.sku} · {option.name}
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={item.productId || '__none__'}
+                                onValueChange={(value) => {
+                                  if (value === '__none__') return
+                                  handleSkuChange(item.id, value)
+                                }}
+                                disabled={!rowOptions.length || isSaving}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={
+                                      skuLoading
+                                        ? 'Memuat SKU…'
+                                        : !rowOptions.length
+                                          ? 'Pilih brand dan tipe'
+                                          : 'Pilih SKU'
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__" disabled>
+                                    Pilih SKU
                                   </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                                  {rowOptions.map((option) => (
+                                    <SelectItem key={option.id} value={option.id}>
+                                      {option.sku} · {option.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={!canCreateLinkedProduct || isSaving}
+                                      onClick={() => canCreateLinkedProduct && setManualProductRowId(item.id)}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      <span className="sr-only">Create product</span>
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {canCreateLinkedProduct
+                                    ? 'Tambah product baru untuk tipe & brand ini'
+                                    : 'Tentukan material type dan brand lebih dulu'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TableCell>
                           <TableCell>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="block max-w-[180px] truncate text-sm text-muted-foreground">
-                                  {item.notes || '—'}
-                                </span>
-                              </TooltipTrigger>
-                              {item.notes && (
-                                <TooltipContent className="max-w-xs text-sm">{item.notes}</TooltipContent>
-                              )}
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!item.productId || isSaving}
-                      onClick={() => item.productId && router.push(`/product/${item.productId}`)}
-                    >
-                      Edit Product
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!canCreateLinkedProduct || isSaving}
-                      onClick={() => canCreateLinkedProduct && setManualProductRowId(item.id)}
-                      title={
-                        canCreateLinkedProduct
-                          ? 'Buat SKU baru dari referensi baris ini'
-                          : 'Pilih brand dan material type terlebih dahulu'
-                      }
-                    >
-                      New Product
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.id)} disabled={isSaving}>
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </Button>
+                            <div className="flex justify-end gap-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={!item.productId || isSaving}
+                                      onClick={() => item.productId && router.push(`/product/${item.productId}`)}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                      <span className="sr-only">Edit product</span>
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit detail produk di katalog</TooltipContent>
+                              </Tooltip>
                             </div>
                           </TableCell>
                         </TableRow>
