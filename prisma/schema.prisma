@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Brand {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  products Product[]
+}
+
+model ProductType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  products Product[]
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  description   String?
+  brandId       String
+  productTypeId String
+  specifications Json?   // For storing flexible specifications
+  images        Json?    // For storing image URLs
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  brand         Brand       @relation(fields: [brandId], references: [id])
+  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  
+  scheduleItems ScheduleItem[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  client      String?
+  location    String?
+  status      String   @default("active") // active, completed, archived
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  schedules Schedule[]
+}
+
+model Schedule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  projectId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  project     Project       @relation(fields: [projectId], references: [id])
+  scheduleItems ScheduleItem[]
+}
+
+model ScheduleItem {
+  id            String   @id @default(cuid())
+  code          String   // Unique code within project
+  description   String?
+  quantity      Float?
+  unit          String?
+  notes         String?
+  productId     String?  // Can be null for MSC/unlinked items
+  scheduleId    String
+  source        String   @default("manual") // manual, csv, etc
+  attributes    Json?    // For storing additional display info
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  schedule      Schedule @relation(fields: [scheduleId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+  
+  @@unique([scheduleId, code]) // Ensure unique code within schedule
+}
