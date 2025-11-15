@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const productId = params.id
+    const { id } = await params
+    const productId = id
 
     const items = await db.scheduleItem.findMany({
       where: { productId },
@@ -49,4 +50,3 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Failed to load product usage' }, { status: 500 })
   }
 }
-

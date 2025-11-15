@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
+import { useCallback, useEffect, useState } from 'react'
+import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   Activity,
@@ -28,7 +28,6 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { useSchedules } from '@/hooks/use-schedules'
 
 type RelatedProduct = {
   id: string
@@ -53,15 +52,7 @@ export function ProductDetailClient({
 }: ProductDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const { schedules, isLoading: schedulesLoading, refresh: refreshSchedules } = useSchedules(userId)
-  const [selectedScheduleId, setSelectedScheduleId] = useState<string>('')
-  const [selectedVariantId, setSelectedVariantId] = useState(product.variants[0]?.id ?? null)
-  const selectedVariant = useMemo(
-    () => product.variants.find((variant) => variant.id === selectedVariantId) ?? product.variants[0],
-    [product.variants, selectedVariantId],
-  )
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [scheduleData, setScheduleData] = useState({ notes: '' })
   const galleryImages = product.images.length
     ? product.images
     : [{ id: 'placeholder', url: '/api/placeholder/400/400', label: 'Placeholder', metadata: null, variantId: null }]
@@ -71,6 +62,7 @@ export function ProductDetailClient({
     const src = (product.variants[0]?.attributes as Record<string, unknown>) || {}
     return Object.entries(src).map(([k, v]) => ({ key: k, value: String(v ?? '') }))
   })
+  const selectedVariant = product.variants[0] ?? null
   const [uploading, setUploading] = useState(false)
   const [cropOpen, setCropOpen] = useState(false)
   const [cropFile, setCropFile] = useState<File | null>(null)
@@ -87,12 +79,14 @@ export function ProductDetailClient({
   >([])
   const [usageLoaded, setUsageLoaded] = useState(false)
   const [usageDialogOpen, setUsageDialogOpen] = useState(false)
-
-  useEffect(() => {
-    if (!selectedScheduleId && schedules.length) {
-      setSelectedScheduleId(schedules[0].id)
-    }
-  }, [schedules, selectedScheduleId])
+  // Legacy schedule state kept as inert stubs so old JSX compiles;
+  // Add-to-schedule from product detail is effectively disabled.
+  const [selectedScheduleId, setSelectedScheduleId] = useState('')
+  const [scheduleData, setScheduleData] = useState({ notes: '' })
+  const schedulesLoading = false
+  const schedules: any[] = []
+  const refreshSchedules = () => {}
+  const handleAddToSchedule = () => {}
 
   const trackActivity = useCallback(
     async (type: string, productId?: string, variantId?: string) => {
@@ -137,58 +131,6 @@ export function ProductDetailClient({
       }
     })()
   }, [product.id, usageLoaded])
-
-  const handleAddToSchedule = async () => {
-    if (!selectedScheduleId) {
-      toast({
-        title: 'Pilih project schedule',
-        description: 'Buat atau pilih schedule sebelum menambahkan item.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      const response = await fetch('/api/schedule/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scheduleId: selectedScheduleId,
-          userId,
-          productId: product.id,
-          variantId: selectedVariant?.id,
-          productName: product.name,
-          brandName: product.brand.name,
-          sku: product.sku,
-          // price is optional in schedule; treat as reference only
-          price: null,
-          attributes: selectedVariant?.attributes ?? {},
-          quantity: 1,
-          unitOfMeasure: 'pcs',
-          area: null,
-          notes: scheduleData.notes,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error?.error || 'Gagal menambahkan item ke schedule.')
-      }
-
-      toast({
-        title: 'Ditambahkan ke schedule',
-        description: `${product.name} berhasil disimpan.`,
-      })
-      trackActivity('ADD_TO_SCHEDULE', product.id, selectedVariant?.id)
-    } catch (error) {
-      console.error('Error adding to schedule:', error)
-      toast({
-        title: 'Gagal menambahkan',
-        description: error instanceof Error ? error.message : 'Terjadi kesalahan. Coba lagi.',
-        variant: 'destructive',
-      })
-    }
-  }
 
   const handleSaveName = async () => {
     const next = nameDraft.trim()
@@ -287,7 +229,7 @@ export function ProductDetailClient({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-              <Image
+              <NextImage
                 src={galleryImages[selectedImageIndex].url}
                 alt={product.name}
                 width={600}
@@ -304,7 +246,7 @@ export function ProductDetailClient({
                     selectedImageIndex === index ? 'border-primary' : 'border-transparent'
                   }`}
                 >
-                  <Image
+                  <NextImage
                     src={image.url}
                     alt={`${product.name} ${index + 1}`}
                     width={120}
@@ -360,62 +302,106 @@ export function ProductDetailClient({
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Configuration</CardTitle>
-                <CardDescription>Select variant and schedule details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Project Schedule</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={selectedScheduleId}
-                    onValueChange={setSelectedScheduleId}
-                    disabled={schedulesLoading || schedules.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={schedulesLoading ? 'Loading…' : 'Select schedule'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {schedules.map((schedule) => (
-                        <SelectItem key={schedule.id} value={schedule.id}>
-                          {schedule.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="icon" onClick={refreshSchedules} disabled={schedulesLoading}>
-                    {schedulesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    <span className="sr-only">Refresh schedules</span>
-                  </Button>
-                </div>
-                {!schedulesLoading && schedules.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Belum ada project. Buat dari halaman Project Schedule lalu klik refresh.
-                  </p>
-                )}
-              </div>
+  <CardHeader>
+    <CardTitle>Specifications</CardTitle>
+    <CardDescription>Edit attributes dan foto produk</CardDescription>
+  </CardHeader>
+  <CardContent className="space-y-6">
+    <div className="space-y-3">
+      {attrRows.map((row, idx) => (
+        <div key={idx} className="grid grid-cols-2 gap-2">
+          <Input
+            placeholder="Attribute"
+            value={row.key}
+            onChange={(e) => {
+              const next = [...attrRows]
+              next[idx] = { ...row, key: e.target.value }
+              setAttrRows(next)
+            }}
+          />
+          <Input
+            placeholder="Value"
+            value={row.value}
+            onChange={(e) => {
+              const next = [...attrRows]
+              next[idx] = { ...row, value: e.target.value }
+              setAttrRows(next)
+            }}
+          />
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setAttrRows((r) => [...r, { key: '', value: '' }])}
+        >
+          Tambah baris
+        </Button>
+        <Button
+          size="sm"
+          onClick={async () => {
+            try {
+              const attrs = Object.fromEntries(
+                attrRows
+                  .filter((r) => r.key.trim())
+                  .map((r) => [r.key.trim(), r.value]),
+              )
+              const variantId = product.variants[0]?.id
+              if (!variantId) return
+              const res = await fetch(`/api/products/${product.id}/variants`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ variantId, attributes: attrs }),
+              })
+              if (!res.ok) throw new Error('Gagal menyimpan atribut')
+              toast({ title: 'Tersimpan', description: 'Atribut berhasil diperbarui.' })
+            } catch (e) {
+              console.error(e)
+              toast({
+                title: 'Gagal',
+                description: 'Tidak dapat menyimpan atribut',
+                variant: 'destructive',
+              })
+            }
+          }}
+        >
+          Simpan
+        </Button>
+      </div>
+    </div>
 
-              <div>
-                <Label>Notes</Label>
-                <Input
-                  value={scheduleData.notes}
-                  onChange={(event) => setScheduleData((prev) => ({ ...prev, notes: event.target.value }))}
-                    className="mt-2"
-                    placeholder="Installation or procurement notes"
-                  />
-                </div>
+    <Separator />
 
-                <Button
-                  className="w-full"
-                  onClick={handleAddToSchedule}
-                  disabled={schedulesLoading || schedules.length === 0}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add to Schedule
-                </Button>
-              </CardContent>
-            </Card>
+    <div className="space-y-3">
+      <div>
+        <h4 className="font-semibold text-sm">Upload Foto</h4>
+        <p className="text-xs text-muted-foreground">
+          Maksimal 2 foto non-crop + 1 thumbnail 1:1
+        </p>
+      </div>
+      <div>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            setCropFile(f)
+            setZoom(1)
+            setOffset({ x: 0, y: 0 })
+            setCropOpen(true)
+            if (e.target) e.target.value = ''
+          }}
+        />
+        {uploading && (
+          <p className="text-sm text-muted-foreground">Mengunggah…</p>
+        )}
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 
             <Card>
               <CardHeader>
@@ -436,12 +422,10 @@ export function ProductDetailClient({
           </div>
         </div>
 
-        <Tabs defaultValue="specs" className="space-y-6">
+        <Tabs defaultValue="resources" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="specs">Specifications</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
-            <TabsTrigger value="edit">Edit Product</TabsTrigger>
           </TabsList>
 
           <TabsContent value="specs">
@@ -742,7 +726,7 @@ export function ProductDetailClient({
                 <Card key={related.id}>
                   <CardContent className="p-4 space-y-3">
                     <div className="aspect-video bg-muted rounded-md overflow-hidden">
-                      <Image
+                      <NextImage
                         src={related.image || '/api/placeholder/300/200'}
                         alt={related.name}
                         width={320}
@@ -823,9 +807,11 @@ function CropDialog({
     if (!file) { setImgUrl(null); return }
     const url = URL.createObjectURL(file)
     setImgUrl(url)
-    const i = new Image()
-    i.onload = () => setNatural({ w: i.naturalWidth, h: i.naturalHeight })
-    i.src = url
+    if (typeof window !== 'undefined') {
+      const i = new window.Image()
+      i.onload = () => setNatural({ w: i.naturalWidth, h: i.naturalHeight })
+      i.src = url
+    }
     return () => URL.revokeObjectURL(url)
   }, [file])
 

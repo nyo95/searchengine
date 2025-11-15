@@ -4,12 +4,13 @@ import { serializeProduct } from '@/lib/serializers/product'
 import ProductDetailClient from '@/components/product/product-detail-client'
 
 type ProductPageProps = {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params
   const product = await db.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       variants: true,
       media: true,

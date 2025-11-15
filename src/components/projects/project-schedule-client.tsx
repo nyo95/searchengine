@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 type Item = {
   id: string
@@ -22,6 +23,16 @@ type Item = {
   notes?: string | null
 }
 
+type ProductOption = {
+  id: string
+  sku: string
+  name: string
+  brandId: string
+  brandName: string
+  productTypeId: string
+  productTypeName: string
+}
+
 type ProjectScheduleClientProps = {
   scheduleId: string
 }
@@ -30,12 +41,14 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
   const router = useRouter()
   const [items, setItems] = useState<Item[]>([])
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([])
-  const [types, setTypes] = useState<string[]>([])
+  const [materialTypes, setMaterialTypes] = useState<string[]>([])
+  const [productTypes, setProductTypes] = useState<{ id: string; name: string }[]>([])
+  const [skuOptions, setSkuOptions] = useState<Record<string, ProductOption[]>>({})
   const [loading, setLoading] = useState(true)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const USER_ID = 'anonymous'
   const [showAdd, setShowAdd] = useState(false)
-  const [newMaterial, setNewMaterial] = useState({ materialType: '', brandName: '', sku: '', notes: '' })
+  const [newNotes, setNewNotes] = useState('')
 
   useEffect(() => {
     fetchItems()
@@ -61,15 +74,20 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
   }
 
   const fetchMeta = async () => {
-    const res = await fetch('/api/catalog/meta')
-    const data = await res.json()
-    setBrands((data.brands || []).map((b: any) => ({ id: b.id, name: b.name })))
+    const [metaRes, typesRes] = await Promise.all([
+      fetch('/api/catalog/meta'),
+      fetch('/api/catalog/product-types'),
+    ])
+    const meta = await metaRes.json()
+    const typesData = await typesRes.json()
+    setBrands((meta.brands || []).map((b: any) => ({ id: b.id, name: b.name })))
+    setProductTypes((typesData.productTypes || []).map((pt: any) => ({ id: pt.id, name: pt.name })))
     const unique = new Set<string>()
     items.forEach((i) => {
       const t = String(i.attributes?.materialType || '').trim()
       if (t) unique.add(t)
     })
-    setTypes(Array.from(unique))
+    setMaterialTypes(Array.from(unique))
   }
 
   const saveInline = async (itemId: string, patch: Partial<Item> & { materialType?: string }) => {
@@ -78,6 +96,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
     const body = {
       itemId,
       updates: {
+        productId: patch.productId ?? item.productId ?? null,
         productName: patch.productName ?? item.productName,
         brandName: patch.brandName ?? item.brandName,
         sku: patch.sku ?? item.sku,
@@ -86,9 +105,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
         area: patch.area ?? item.area ?? null,
         notes: patch.notes ?? item.notes ?? null,
         attributes: { ...(item.attributes || {}), materialType: patch.materialType ?? item.attributes?.materialType },
-        materialType: patch.materialType ?? item.attributes?.materialType,
       },
-      upsert: true,
     }
     const res = await fetch('/api/schedule/items', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) {
@@ -125,38 +142,14 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add Material</DialogTitle>
-                    <DialogDescription>Tambah satu baris material ke schedule ini.</DialogDescription>
+                    <DialogDescription>Tambah satu baris kosong ke schedule ini.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div>
-                      <Label>Material Type</Label>
+                      <Label>Notes (optional)</Label>
                       <Input
-                        value={newMaterial.materialType}
-                        onChange={(e) => setNewMaterial((m) => ({ ...m, materialType: e.target.value }))}
-                        placeholder="High Pressure Laminate"
-                      />
-                    </div>
-                    <div>
-                      <Label>Brand</Label>
-                      <Input
-                        value={newMaterial.brandName}
-                        onChange={(e) => setNewMaterial((m) => ({ ...m, brandName: e.target.value }))}
-                        placeholder="Brand name"
-                      />
-                    </div>
-                    <div>
-                      <Label>SKU / Type</Label>
-                      <Input
-                        value={newMaterial.sku}
-                        onChange={(e) => setNewMaterial((m) => ({ ...m, sku: e.target.value }))}
-                        placeholder="SKU or type text"
-                      />
-                    </div>
-                    <div>
-                      <Label>Notes</Label>
-                      <Input
-                        value={newMaterial.notes}
-                        onChange={(e) => setNewMaterial((m) => ({ ...m, notes: e.target.value }))}
+                        value={newNotes}
+                        onChange={(e) => setNewNotes(e.target.value)}
                         placeholder="Optional notes"
                       />
                     </div>
@@ -164,7 +157,6 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                       <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
                       <Button
                         onClick={async () => {
-                          if (!newMaterial.brandName.trim() || !newMaterial.sku.trim()) return
                           try {
                             const res = await fetch('/api/schedule/items/manual', {
                               method: 'POST',
@@ -172,17 +164,14 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                               body: JSON.stringify({
                                 scheduleId,
                                 userId: USER_ID,
-                                materialType: newMaterial.materialType,
-                                brandName: newMaterial.brandName,
-                                sku: newMaterial.sku,
-                                notes: newMaterial.notes,
+                                notes: newNotes,
                               }),
                             })
                             const data = await res.json()
                             if (res.ok && data.item) {
                               setItems((prev) => [data.item, ...prev])
                               setShowAdd(false)
-                              setNewMaterial({ materialType: '', brandName: '', sku: '', notes: '' })
+                              setNewNotes('')
                             } else {
                               console.error('Add material failed', data)
                             }
@@ -190,7 +179,6 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                             console.error('Add material error', err)
                           }
                         }}
-                        disabled={!newMaterial.brandName.trim() || !newMaterial.sku.trim()}
                       >
                         Add
                       </Button>
@@ -223,25 +211,46 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
+                        <Select
                           value={String(item.attributes?.materialType || '')}
-                          readOnly
-                        />
+                          onValueChange={(value) => saveInline(item.id, { materialType: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {materialTypes.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
-                        <select defaultValue={item.brandName} className="border rounded px-2 py-1 w-full"
-                          onChange={(e) => saveInline(item.id, { brandName: e.target.value })}>
-                          <option value={item.brandName}>{item.brandName}</option>
-                          {brands.map((b) => (
-                            <option key={b.id} value={b.name}>{b.name}</option>
-                          ))}
-                        </select>
+                        <Select
+                          value={item.brandName || ''}
+                          onValueChange={(value) => saveInline(item.id, { brandName: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select brand" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {brands.map((b) => (
+                              <SelectItem key={b.id} value={b.name}>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
                         <Input value={item.sku} readOnly />
                       </TableCell>
                       <TableCell>
-                        <Input defaultValue={item.notes || ''} onBlur={(e) => saveInline(item.id, { notes: e.target.value })} />
+                        <span className="text-xs text-muted-foreground">
+                          {item.notes || '-'}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Button variant="outline" size="sm" onClick={() => item.productId && router.push(`/product/${item.productId}`)}>

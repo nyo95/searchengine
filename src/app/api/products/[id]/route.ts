@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json()
     const { name, description } = body as { name?: string; description?: string }
@@ -14,8 +14,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       data.description = description
     }
 
+    const { id } = await params
     const product = await db.product.update({
-      where: { id: params.id },
+      where: { id },
       data,
     })
 
@@ -25,4 +26,3 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: 'Failed to update product' }, { status: 500 })
   }
 }
-

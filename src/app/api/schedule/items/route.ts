@@ -150,10 +150,11 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { itemId, userId, updates, upsert } = body as {
+    const { itemId, userId, updates } = body as {
       itemId: string
       userId?: string
       updates: Partial<{
+        productId: string | null
         productName: string
         brandName: string
         sku: string
@@ -164,7 +165,6 @@ export async function PATCH(request: NextRequest) {
         notes: string | null
         materialType?: string
       }>
-      upsert?: boolean
     }
 
     if (!itemId || !updates) {
@@ -178,56 +178,23 @@ export async function PATCH(request: NextRequest) {
       await ensureScheduleOwnership(item.scheduleId, userId)
     }
 
-    let productId: string | undefined
-    // Optional minimal upsert to main catalog based on brand/materialType/sku
-    if (upsert && (updates.brandName || updates.sku || updates.materialType)) {
-      const brandName = updates.brandName?.trim() || item.brandName
-      const sku = updates.sku?.trim() || item.sku
-      const materialType = updates.materialType?.trim()
+    const nextAttributes =
+      (updates.attributes as any) ?? item.attributes ?? {}
 
-      // Determine category by heuristic
-      const catName = classifyCategoryFromType(materialType)
-      const category = await db.category.findFirst({ where: { name: catName } })
-      const categoryId = category?.id
-
-      // Brand
-      const brand = await db.brand.upsert({
-        where: { name: brandName },
-        update: {},
-        create: { name: brandName, nameEn: brandName, categoryId: categoryId ?? (await ensureDefaultMaterialCategory()).id },
-      })
-
-      // ProductType is per brand
-      const ptName = materialType || 'Generic'
-      let productType = await db.productType.findFirst({ where: { name: ptName, brandId: brand.id } })
-      if (!productType) {
-        productType = await db.productType.create({ data: { name: ptName, brandId: brand.id } })
-      }
-
-      const existing = await db.product.findFirst({ where: { sku, brandId: brand.id } })
-      const product =
-        existing ||
-        (await db.product.create({
-          data: {
-            sku,
-            name: updates.productName || item.productName,
-            productTypeId: productType.id,
-            brandId: brand.id,
-            categoryId: categoryId ?? null,
-          },
-        }))
-
-      productId = product.id
+    // Keep convenience materialType in attributes for UI
+    if (typeof updates.materialType === 'string') {
+      ;(nextAttributes as any).materialType = updates.materialType
     }
 
     const updated = await db.scheduleItem.update({
       where: { id: itemId },
       data: {
-        productId: productId ?? item.productId,
+        productId:
+          updates.productId === undefined ? item.productId : updates.productId,
         productName: updates.productName ?? item.productName,
         brandName: updates.brandName ?? item.brandName,
         sku: updates.sku ?? item.sku,
-        attributes: (updates.attributes as any) ?? item.attributes,
+        attributes: nextAttributes,
         quantity: updates.quantity ?? item.quantity,
         unitOfMeasure: updates.unitOfMeasure ?? item.unitOfMeasure,
         area: updates.area ?? item.area,
@@ -243,19 +210,6 @@ export async function PATCH(request: NextRequest) {
     console.error('Schedule item update error:', error)
     return NextResponse.json({ error: 'Failed to update schedule item' }, { status: 500 })
   }
-}
-
-async function ensureDefaultMaterialCategory() {
-  const existing = await db.category.findFirst({ where: { name: 'Material' } })
-  if (existing) return existing
-  return db.category.create({ data: { name: 'Material', nameEn: 'Material' } })
-}
-
-function classifyCategoryFromType(type?: string | null) {
-  const t = (type || '').toLowerCase()
-  if (/downlight|spotlight|lampu/.test(t)) return 'Lighting'
-  if (/chair|furniture|sofa|kursi|meja/.test(t)) return 'Furniture'
-  return 'Material'
 }
 
 async function ensureScheduleOwnership(scheduleId: string, userId: string) {

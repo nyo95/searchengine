@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   reactStrictMode: false,
   eslint: { ignoreDuringBuilds: true },
+  images: {
+    // Needed so Next/Image dapat memuat SVG placeholder internal
+    dangerouslyAllowSVG: true,
+  },
 };
 
 export default nextConfig;

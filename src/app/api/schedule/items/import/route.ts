@@ -33,9 +33,8 @@ export async function POST(request: NextRequest) {
       // Material Type column from plugin is `kind_label`
       materialType: header.findIndex((h) => /kind_label|material\s*type/i.test(h)),
       brand: header.findIndex((h) => /brand/i.test(h)),
-      // SKU column from plugin is usually `subtype` (a free text Type/SKU),
-      // but we also accept `code` or plain `type` when subtype is not present.
-      sku: header.findIndex((h) => /subtype|sku|type\s*\(sku\)|^code$|^type$/i.test(h)),
+      // SKU column from plugin adalah `subtype` (free text Type/SKU) atau kolom eksplisit `sku`
+      sku: header.findIndex((h) => /subtype|sku|type\s*\(sku\)/i.test(h)),
       code: header.findIndex((h) => /^code$/i.test(h)),
       notes: header.findIndex((h) => /notes?/i.test(h)),
       quantity: header.findIndex((h) => /quantity|qty/i.test(h)),
@@ -58,7 +57,7 @@ export async function POST(request: NextRequest) {
       const area = safeAt(r, idx.area) || null
 
       let rowBrand = brandNameRaw
-      let rowSku = skuRaw || code
+      let rowSku = skuRaw
       let productId: string | null = null
       let productName = rowSku || materialType || code || ''
 
