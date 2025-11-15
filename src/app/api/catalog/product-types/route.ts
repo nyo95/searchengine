@@ -10,6 +10,20 @@ export async function GET(_request: NextRequest) {
         nameEn: true,
         brandId: true,
         subcategoryId: true,
+        subcategory: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            parent: {
+              select: {
+                id: true,
+                name: true,
+                nameEn: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { name: 'asc' },
     })

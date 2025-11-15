@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
       userId,
       productId,
       variantId,
-      productName,
-      brandName,
+      brandId,
+      productTypeId,
       sku,
       price,
       attributes,
@@ -62,21 +62,36 @@ export async function POST(request: NextRequest) {
       notes,
     } = body
 
-    if (!scheduleId || !userId || !productId || !productName || !brandName || !sku) {
+    if (!scheduleId || !userId || !productId || !brandId || !productTypeId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const normalizedUser = await ensureUser(userId)
     await ensureScheduleOwnership(scheduleId, normalizedUser.id)
 
+    const product = await db.product.findUnique({
+      where: { id: productId },
+      include: { brand: true, productType: true },
+    })
+
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    }
+
+    if (product.brandId !== brandId || product.productTypeId !== productTypeId) {
+      return NextResponse.json({ error: 'Product metadata mismatch' }, { status: 400 })
+    }
+
     const newItem = await db.scheduleItem.create({
       data: {
         scheduleId,
         productId,
         variantId,
-        productName,
-        brandName,
-        sku,
+        productTypeId,
+        brandId,
+        productName: product.name,
+        brandName: product.brand.name,
+        sku: sku || product.sku,
         price: typeof price === 'number' ? new Prisma.Decimal(price) : null,
         attributes: attributes || {},
         quantity: quantity ?? 1,

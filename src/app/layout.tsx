@@ -43,13 +43,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
-        <header className="border-b bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-50">
-          <nav className="container mx-auto px-4 py-3 flex items-center gap-6">
-            <a href="/" className="font-semibold">Search</a>
-            <a href="/projects" className="text-muted-foreground hover:text-foreground">Projects</a>
-            <a href="/brands" className="text-muted-foreground hover:text-foreground">Brands</a>
-          </nav>
-        </header>
         {children}
         <Toaster richColors />
       </body>

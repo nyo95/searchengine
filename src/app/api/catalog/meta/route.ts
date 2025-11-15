@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
           id: true,
           name: true,
           nameEn: true,
+          parentId: true,
           _count: { select: { products: true } },
         },
         orderBy: { name: 'asc' },

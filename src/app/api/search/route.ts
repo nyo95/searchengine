@@ -6,6 +6,7 @@ import { serializeProduct } from '@/lib/serializers/product'
 type SearchFilters = {
   category?: string
   brand?: string
+  productType?: string
 }
 
 const DEFAULT_LIMIT = 20
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q')?.trim() ?? ''
     const category = searchParams.get('category')?.trim() || undefined
     const brand = searchParams.get('brand')?.trim() || undefined
+    const productType = searchParams.get('productTypeId')?.trim() || undefined
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || `${DEFAULT_LIMIT}`, 10), 1), MAX_LIMIT)
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0)
 
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
       if (s.synonym) tokens.add(s.synonym)
     }
 
-    const where = buildProductWhereInput(tokens, { category, brand })
+    const where = buildProductWhereInput(tokens, { category, brand, productType })
 
     const [rows, total] = await Promise.all([
       db.product.findMany({
@@ -101,6 +103,14 @@ function buildProductWhereInput(tokens: Set<string>, filters: SearchFilters): Pr
         { brand: { category: { name: { equals: filters.category, mode: 'insensitive' } } } },
       ],
     })
+  if (filters.productType) {
+    andFilters.push({
+      OR: [
+        { productType: { id: filters.productType } },
+        { productType: { name: { equals: filters.productType, mode: 'insensitive' } } },
+      ],
+    })
+  }
   if (andFilters.length) where.AND = andFilters
   return where
 }

@@ -20,7 +20,9 @@ type VariantSummary = {
 type ProductSummary = {
   id: string
   name: string
+  brandId: string
   brandName: string
+  productTypeId: string
   sku: string
   basePrice?: number | null
   variants: VariantSummary[]
@@ -87,8 +89,8 @@ export function AddToScheduleDialog({
           userId,
           productId: product.id,
           variantId: selectedVariant?.id,
-          productName: product.name,
-          brandName: product.brandName,
+          brandId: product.brandId,
+          productTypeId: product.productTypeId,
           sku: product.sku,
           price: unitPrice,
           attributes: selectedVariant?.attributes ?? {},

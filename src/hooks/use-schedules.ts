@@ -16,6 +16,25 @@ export function useSchedules(userId: string) {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
+  const createSchedule = useCallback(
+    async ({ name, description }: { name: string; description?: string | null }) => {
+      if (!userId) throw new Error('User is required to create schedules')
+      const response = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, name, description }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error?.error || 'Failed to create schedule')
+      }
+      const data = await response.json()
+      setSchedules((prev) => [data.schedule, ...prev])
+      return data.schedule as ScheduleSummary
+    },
+    [userId],
+  )
+
   const fetchSchedules = useCallback(async () => {
     if (!userId) return
     setIsLoading(true)
@@ -45,6 +64,7 @@ export function useSchedules(userId: string) {
     isLoading,
     error,
     refresh: fetchSchedules,
+    createSchedule,
     setSchedules,
   }
 }
