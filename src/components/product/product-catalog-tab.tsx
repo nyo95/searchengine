@@ -78,6 +78,10 @@ export function ProductCatalogTab({ userId }: ProductCatalogTabProps) {
   const [offset, setOffset] = useState(0)
   const [lastQuery, setLastQuery] = useState('')
   const [totalResults, setTotalResults] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState<string>('ALL')
+  const [selectedProductType, setSelectedProductType] = useState<string>('ALL')
+  const [showFilters, setShowFilters] = useState(false)
 
   
 
