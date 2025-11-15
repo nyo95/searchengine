@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Calendar, Package, Search } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ProductCatalogTab } from '@/components/product/product-catalog-tab'
 import { ProjectScheduleTab } from '@/components/projects/project-schedule-tab'
 
@@ -37,11 +39,14 @@ function HomePageContent() {
                 <p className="text-sm text-gray-500">Search • Schedule • Database</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-3 text-sm text-gray-500">
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
                 <span>Online</span>
               </div>
+              <Button asChild variant="outline" size="sm" className="rounded-md">
+                <Link href="/admin">Admin</Link>
+              </Button>
             </div>
           </div>
         </div>

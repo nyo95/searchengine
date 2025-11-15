@@ -72,13 +72,8 @@ export default function AdminDashboardPage() {
     categoryId: '',
     subcategoryId: '',
     productTypeId: '',
-    variantName: '',
-    variantPrice: '',
   })
   const [attributeRows, setAttributeRows] = useState<Array<{ key: string; value: string }>>([{ key: '', value: '' }])
-  const [variantAttributeRows, setVariantAttributeRows] = useState<Array<{ key: string; value: string }>>([
-    { key: '', value: '' },
-  ])
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -232,11 +227,8 @@ export default function AdminDashboardPage() {
       categoryId: '',
       subcategoryId: '',
       productTypeId: '',
-      variantName: '',
-      variantPrice: '',
     })
     setAttributeRows([{ key: '', value: '' }])
-    setVariantAttributeRows([{ key: '', value: '' }])
     setSelectedImages([])
   }
 
@@ -253,6 +245,7 @@ export default function AdminDashboardPage() {
 
     setIsSubmitting(true)
     try {
+      const attributeData = buildAttributesObject(attributeRows)
       const payload = {
         sku: formState.sku.trim(),
         name: formState.name.trim(),
@@ -276,16 +269,18 @@ export default function AdminDashboardPage() {
       }
       const { product } = await response.json()
 
-      if (formState.variantName.trim() || formState.variantPrice || Object.keys(buildAttributesObject(variantAttributeRows)).length) {
-        await fetch(`/api/products/${product.id}/variants`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formState.variantName.trim() || `${formState.name.trim()} Variant`,
-            price: formState.variantPrice ? parseFloat(formState.variantPrice) : undefined,
-            attributes: buildAttributesObject(variantAttributeRows),
-          }),
-        })
+      const variantRes = await fetch(`/api/products/${product.id}/variants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formState.name.trim(),
+          price: formState.basePrice ? parseFloat(formState.basePrice) : undefined,
+          attributes: attributeData,
+        }),
+      })
+      if (!variantRes.ok) {
+        const err = await variantRes.json().catch(() => ({}))
+        throw new Error(err?.error || 'Gagal menyimpan atribut produk')
       }
 
       for (const file of selectedImages) {
@@ -557,7 +552,7 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Atribut Produk</Label>
+                    <Label>Spesifikasi Produk (Attribute | Value)</Label>
                     <div className="space-y-3 rounded-lg border p-4">
                       {attributeRows.map((row, index) => (
                         <div key={`${index}-${row.key}`} className="grid gap-2 md:grid-cols-2">
@@ -578,53 +573,6 @@ export default function AdminDashboardPage() {
                       <Button type="button" variant="ghost" size="sm" onClick={() => addAttributeRow(setAttributeRows)}>
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Tambah atribut
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Informasi Variant Pertama</Label>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Nama Variant</Label>
-                        <Input
-                          value={formState.variantName}
-                          onChange={(event) => handleFormChange('variantName', event.target.value)}
-                          placeholder="cth: Sheet 240x120"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Harga Variant</Label>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={formState.variantPrice}
-                          onChange={(event) => handleFormChange('variantPrice', event.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-3 rounded-lg border p-4">
-                      {variantAttributeRows.map((row, index) => (
-                        <div key={`variant-${index}`} className="grid gap-2 md:grid-cols-2">
-                          <Input
-                            placeholder="Atribut variant"
-                            value={row.key}
-                            onChange={(event) =>
-                              updateAttributeRows(variantAttributeRows, setVariantAttributeRows, index, 'key', event.target.value)
-                            }
-                          />
-                          <Input
-                            placeholder="Nilai"
-                            value={row.value}
-                            onChange={(event) =>
-                              updateAttributeRows(variantAttributeRows, setVariantAttributeRows, index, 'value', event.target.value)
-                            }
-                          />
-                        </div>
-                      ))}
-                      <Button type="button" variant="ghost" size="sm" onClick={() => addAttributeRow(setVariantAttributeRows)}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Tambah atribut variant
                       </Button>
                     </div>
                   </div>

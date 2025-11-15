@@ -429,12 +429,12 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
   return (
     <>
       <div className="space-y-8">
-        <Card className="border-slate-200 dark:border-slate-700 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+        <Card className="rounded-2xl border border-gray-100 shadow-sm">
+          <CardHeader className="border-b border-gray-100 bg-white">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500"></div>
                   Active Project
                 </div>
                 {isEditingName ? (
@@ -442,10 +442,15 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                     <Input
                       value={nameDraft}
                       onChange={(event) => setNameDraft(event.target.value)}
-                      className="w-full max-w-md h-11 rounded-lg border-2 border-blue-500 focus:border-blue-600"
+                      className="h-11 w-full max-w-md rounded-lg border border-gray-200 focus:border-gray-300"
                       autoFocus
                     />
-                    <Button size="sm" onClick={handleRename} disabled={savingSchedule || !nameDraft.trim()} className="rounded-lg">
+                    <Button
+                      size="sm"
+                      onClick={handleRename}
+                      disabled={savingSchedule || !nameDraft.trim()}
+                      className="rounded-md"
+                    >
                       {savingSchedule ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                     </Button>
                     <Button
@@ -455,33 +460,33 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                         setIsEditingName(false)
                         setNameDraft(scheduleDetail?.name || '')
                       }}
-                      className="rounded-lg"
+                      className="rounded-md"
                     >
                       Cancel
                     </Button>
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                    <h2 className="text-2xl font-semibold text-gray-900">
                       {scheduleDetail?.name || (schedules.length ? 'Select Project Schedule' : 'No Schedules Yet')}
                     </h2>
                     {scheduleDetail && (
-                      <Button variant="ghost" size="sm" onClick={() => setIsEditingName(true)} className="rounded-lg">
+                      <Button variant="ghost" size="sm" onClick={() => setIsEditingName(true)} className="rounded-md">
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 )}
                 {scheduleDetail?.description && (
-                  <p className="text-slate-600 dark:text-slate-400 max-w-2xl">{scheduleDetail.description}</p>
+                  <p className="max-w-2xl text-sm text-gray-500">{scheduleDetail.description}</p>
                 )}
-                {loadingDetail && <p className="text-sm text-slate-500 dark:text-slate-400">Loading project details…</p>}
+                {loadingDetail && <p className="text-sm text-gray-500">Loading project details…</p>}
                 {scheduleDetail && (
                   <div className="flex flex-wrap gap-3 text-sm">
-                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
+                    <Badge className="border border-gray-200 bg-gray-50 text-gray-700">
                       {scheduleDetail.itemsCount} items
                     </Badge>
-                    <Badge variant="outline" className="border-slate-300 dark:border-slate-600">
+                    <Badge variant="outline" className="border-gray-200 text-gray-500">
                       Updated {new Date(scheduleDetail.updatedAt).toLocaleDateString()}
                     </Badge>
                   </div>
@@ -489,7 +494,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Select value={scheduleSelectValue} onValueChange={(value) => setSelectedScheduleId(value)}>
-                  <SelectTrigger className="min-w-[250px] h-11 rounded-lg">
+                  <SelectTrigger className="h-11 min-w-[240px] rounded-lg border border-gray-200 focus:border-gray-300">
                     <SelectValue placeholder="Select schedule" />
                   </SelectTrigger>
                   <SelectContent>
@@ -500,11 +505,21 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" onClick={refreshSchedules} disabled={isScheduleLoading} className="rounded-lg">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshSchedules}
+                  disabled={isScheduleLoading}
+                  className="rounded-md"
+                >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Refresh
                 </Button>
-                <Button size="sm" onClick={() => handleCreateDialogChange(true)} className="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                <Button
+                  size="sm"
+                  onClick={() => handleCreateDialogChange(true)}
+                  className="rounded-md bg-gray-900 text-white hover:bg-gray-800"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   New Project
                 </Button>
@@ -514,17 +529,17 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
         </Card>
 
         {!schedules.length && (
-          <Card className="border-slate-200 dark:border-slate-700 shadow-lg">
-            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-              <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
-                <Plus className="h-8 w-8 text-blue-600" />
+          <Card className="rounded-2xl border border-gray-100 shadow-sm">
+            <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-50 text-gray-600">
+                <Plus className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Project Schedules Yet</h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md">
-                Create your first project schedule to start organizing interior materials and products for your design projects.
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">No Project Schedules Yet</h3>
+              <p className="mb-6 max-w-md text-sm text-gray-500">
+                Create your first project schedule to start organizing materials for your projects.
               </p>
-              <Button size="lg" onClick={() => handleCreateDialogChange(true)} className="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                <Plus className="mr-2 h-5 w-5" />
+              <Button size="sm" onClick={() => handleCreateDialogChange(true)} className="rounded-md bg-gray-900 text-white">
+                <Plus className="mr-2 h-4 w-4" />
                 Create Project Schedule
               </Button>
             </CardContent>
@@ -532,12 +547,12 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
         )}
 
       {selectedScheduleId && (
-        <Card className="border-slate-200 dark:border-slate-700 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+        <Card className="rounded-2xl border border-gray-100 shadow-sm">
+          <CardHeader className="border-b border-gray-100 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <CardTitle className="text-xl font-bold text-slate-900 dark:text-white">Schedule Items</CardTitle>
-                <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Manage project materials and products by adding items to your schedule.</p>
+                <CardTitle className="text-xl font-semibold text-gray-900">Schedule Items</CardTitle>
+                <p className="mt-1 text-sm text-gray-500">Manage project materials and connect them to catalog entries.</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Button
@@ -545,11 +560,16 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
                   size="sm"
                   onClick={() => selectedScheduleId && fetchItems(selectedScheduleId)}
                   disabled={loadingItems || !selectedScheduleId}
-                  className="rounded-lg"
+                  className="rounded-md"
                 >
                   {loadingItems ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh Items'}
                 </Button>
-                <Button size="sm" onClick={handleAddScheduleRow} disabled={addingScheduleRow || !selectedScheduleId} className="rounded-lg bg-blue-600 hover:bg-blue-700">
+                <Button
+                  size="sm"
+                  onClick={handleAddScheduleRow}
+                  disabled={addingScheduleRow || !selectedScheduleId}
+                  className="rounded-md bg-gray-900 text-white hover:bg-gray-800"
+                >
                   {addingScheduleRow ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -568,22 +588,22 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
           <CardContent className="space-y-4 overflow-x-auto">
             {loadingItems ? (
               <div className="flex items-center justify-center p-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600 mr-3" />
+                <Loader2 className="mr-3 h-8 w-8 animate-spin text-gray-600" />
                 <div className="text-center">
-                  <p className="text-slate-700 dark:text-slate-300 font-medium">Loading schedule items...</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Please wait while we fetch your materials</p>
+                  <p className="font-medium text-gray-700">Loading schedule items...</p>
+                  <p className="text-sm text-gray-500">Please wait while we fetch your materials</p>
                 </div>
               </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-12 text-center">
-                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-                  <Plus className="h-8 w-8 text-slate-400" />
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-50 text-gray-500">
+                  <Plus className="h-5 w-5" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No Items Yet</h3>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">
-                  This schedule doesn't have any materials yet. Add your first item to get started.
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">No Items Yet</h3>
+                <p className="mb-4 text-sm text-gray-500">
+                  This schedule doesn&apos;t have any materials yet. Add your first item to get started.
                 </p>
-                <Button size="sm" onClick={handleAddScheduleRow} disabled={addingScheduleRow} className="rounded-lg">
+                <Button size="sm" onClick={handleAddScheduleRow} disabled={addingScheduleRow} className="rounded-md">
                   <Plus className="mr-2 h-4 w-4" />
                   Add First Item
                 </Button>
@@ -592,14 +612,14 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
               <TooltipProvider>
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead className="w-10 font-semibold text-slate-700 dark:text-slate-300"></TableHead>
-                      <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Code</TableHead>
-                      <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Category</TableHead>
-                      <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Material Type</TableHead>
-                      <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Brand</TableHead>
-                      <TableHead className="font-semibold text-slate-700 dark:text-slate-300">SKU</TableHead>
-                      <TableHead className="w-[140px] text-right font-semibold text-slate-700 dark:text-slate-300">Actions</TableHead>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-10 font-medium text-gray-500"></TableHead>
+                      <TableHead className="font-medium text-gray-500">Code</TableHead>
+                      <TableHead className="font-medium text-gray-500">Category</TableHead>
+                      <TableHead className="font-medium text-gray-500">Material Type</TableHead>
+                      <TableHead className="font-medium text-gray-500">Brand</TableHead>
+                      <TableHead className="font-medium text-gray-500">SKU</TableHead>
+                      <TableHead className="w-[140px] text-right font-medium text-gray-500">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
