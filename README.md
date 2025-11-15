@@ -1,141 +1,150 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+## Architecture Catalog & Material Scheduler
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+Localized catalog untuk material, lighting, furniture, dan hardware dengan fokus:
 
-## ✨ Technology Stack
+- search engine yang ringan dan bilingual,
+- material scheduler per project yang sinkron dengan plugin SketchUp **Material Scheduler**,
+- pengelolaan brand & subkategori (mis. `Material → High Pressure Laminate`).
 
-This scaffold provides a robust foundation built with:
-
-### 🎯 Core Framework
-- **⚡ Next.js 15** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
-
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
-
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
-
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Axios** - Promise-based HTTP client
-
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation Node.js and TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
-
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
-
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
-
-## 🚀 Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
-
-## 🤖 Powered by Z.ai
-
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
-
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
-
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
-
-## 📁 Project Structure
-
-```
-src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
-```
-
-## 🎨 Available Features & Components
-
-This scaffold includes a comprehensive set of modern web development tools:
-
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
-
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
-
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
-
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Axios + TanStack Query
-- **State Management**: Simple and scalable with Zustand
-
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
-
-## 🤝 Get Started with Z.ai
-
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
+Stack: **Next.js App Router + Prisma + PostgreSQL**. UI mengikuti scaffold Z.ai (`Search | Projects | Brands`).  
+Schedule di sini adalah **daftar spesifikasi**, *bukan* alat menghitung BQ / grand total biaya.
 
 ---
 
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+### 1. Prerequisites
+
+| Requirement    | Notes                                                   |
+| -------------- | ------------------------------------------------------- |
+| Node.js 18+    | Cocok dengan Next.js 15 + Turbopack                    |
+| PostgreSQL 14+ | Database `catalog` dengan akses lokal (lihat `.env`)   |
+
+Buat `.env` di root repo:
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/catalog"
+```
+
+---
+
+### 2. Install & Prepare Database
+
+```bash
+npm install
+npm run db:generate     # optional, cepat
+npm run db:migrate      # apply seluruh migration Prisma
+npm run db:seed         # kosongkan DB & buat user 'anonymous'
+```
+
+Seed **tidak lagi** memuat demo produk/brand – katalog dimulai kosong (kelopak bunga).  
+Semua data diisi lewat import CSV atau input manual dari UI.
+
+---
+
+### 3. Run the App
+
+```bash
+npm run dev       # menggunakan Turbopack
+# buka http://localhost:3000
+```
+
+Semua traffic menggunakan user `anonymous` sehingga learning signal tetap internal.
+
+---
+
+### 4. Fitur Utama
+
+#### 4.1 Search
+
+- Input keyword + synonyms (mis. `kursi` / `chair`, `hpl` / `laminate`).
+- Filter by **Category** dan **Brand**.
+- Ranking berdasarkan **viewCount** + **usageCount** (jumlah item yang dipakai di schedule).
+- Harga (`basePrice` / `priceRange`) hanya informasi opsional di kartu, **bukan** filter / sorting.
+
+#### 4.2 Projects & Project Material Schedule
+
+- Tab **Projects**:
+  - Membuat project baru (ProjectSchedule).
+  - Menampilkan daftar project dengan jumlah item.
+- Halaman `/projects/[id]/schedule`:
+  - Tabel **Items** (Project Material Schedule) dengan kolom:
+    - **Material Type** – `kind_label` dari CSV atau manual input.
+    - **Brand** – nama brand (bisa diubah dari dropdown).
+    - **SKU / Type** – subtype / kode item.
+    - **Notes** – catatan material.
+  - **Import CSV**:
+    - Format utama mengikuti plugin SketchUp *Material Scheduler*:
+      - Header minimal: `code, kind_label, brand, subtype, notes, …`
+      - Semua baris akan tampil di schedule.
+      - Baris dengan `brand + subtype` lengkap:
+        - otomatis membuat / menghubungkan **Brand**, **ProductType**, **Product** di katalog.
+      - Baris tanpa brand/SKU lengkap:
+        - tetap disimpan sebagai baris schedule (snapshot), **tanpa** membuat Product/Brand baru.
+      - Import file yang sama berulang **tidak** menduplikasi baris (dedup `(scheduleId, brandName, sku)`).
+  - **Add Material**:
+    - Tambah satu baris material manual (Material Type, Brand, SKU, Notes).
+    - Jika brand+SKU lengkap, akan di‑bind ke katalog; jika tidak, disimpan sebagai snapshot saja.
+  - `quantity`, `unitOfMeasure`, `price` disimpan sebagai metadata opsional dan tidak dipakai untuk menghitung total.
+
+#### 4.3 Brands Workspace
+
+- Tab **Brands**:
+  - Filter by kategori / subkategori dan search by nama brand.
+  - Tabel brand: **Brand, Website, Email, Contact, Subcategories, Products**.
+- Halaman `/brands/[id]` (Brand Detail):
+  - **Brand Information** – edit website, email, contact.
+  - **Subcategory Contacts**:
+    - List subkategori yang sudah terhubung ke brand (mis. `High Pressure Laminate`).
+    - Sales Email + Sales Contact per subkategori.
+    - Input “link new subcategory”:
+      - Jika nama subkategori sudah ada sebagai child `Category` di bawah kategori utama brand → hanya bind.
+      - Jika belum ada → otomatis membuat `Category` baru sebagai subkategori & bind ke brand.
+
+---
+
+### 5. API Highlights
+
+| Endpoint                                         | Purpose                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `GET /api/search?q=&userId=`                     | Catalog search dengan filter `category`, `brand`, pagination (tanpa filter harga).               |
+| `GET /api/suggestions?q=`                        | Type‑ahead suggestions (products, brands, types, synonyms).                                      |
+| `POST /api/activity`                             | Tracking `SEARCH`, `CLICK_PRODUCT`, `VIEW_PRODUCT`, `ADD_TO_SCHEDULE`, dll.                      |
+| `GET /api/schedule?userId=`                      | List project schedules untuk user.                                                               |
+| `POST /api/schedule`                             | Buat schedule/project baru.                                                                      |
+| `GET/POST/PATCH/DELETE /api/schedule/items`      | Baca/tambah/update/hapus baris schedule.                                                         |
+| `POST /api/schedule/items/import`                | Import CSV (format plugin Material Scheduler: `code, kind_label, brand, subtype, notes, …`).     |
+| `POST /api/schedule/items/manual`                | Tambah satu baris material manual ke schedule.                                                   |
+| `GET /api/catalog/meta`                          | Category + brand metadata dengan product counts (untuk filter Search).                           |
+| `GET /api/catalog/categories`                    | Daftar kategori + subkategori (parent/child) untuk Brands UI.                                    |
+| `GET /api/brands`                                | List brand dengan metadata + subcategory summary.                                                |
+| `GET /api/brands/[id]` / `PATCH /api/brands/[id]`| Detail & update brand (website/email/contact).                                                   |
+| `PATCH /api/brands/[id]/subcategory/[subId]`     | Link brand ↔ subkategori + isi Sales Email / Sales Contact.                                      |
+| `GET/POST /api/products/[id]/*`                  | Edit deskripsi produk, media (gambar/datasheet/CAD), dan varian.                                |
+
+---
+
+### 6. Typical Workflow
+
+1. **Buat project schedule**
+   - Buka tab **Projects** → klik `New Project` → isi nama & deskripsi.
+2. **Import dari SketchUp**
+   - Dari SketchUp plugin *Material Scheduler*, export CSV (header minimal `code, kind_label, brand, subtype, notes`).  
+   - Di halaman `/projects/[id]/schedule`, klik `Import CSV` dan pilih file tersebut.
+   - Semua baris akan muncul di tabel Items; tidak ada baris yang hilang.
+3. **Tambah / koreksi material**
+   - Jika perlu tambahkan baris manual via `Add Material`.
+   - Edit brand / notes / material type dari tabel; untuk SKU kritikal kamu bisa kaitkan ke catalog product detail lewat `Edit Product` (jika baris sudah punya `productId`).
+4. **Cari & lihat detail produk**
+   - Di tab **Search**, gunakan search bar + filter Category/Brand untuk menemukan produk.  
+   - Klik kartu untuk masuk ke halaman detail produk (gambar, atribut, resources) dan Add to Schedule project tertentu.
+5. **Kelola brand & subkategori**
+   - Di tab **Brands**, klik salah satu brand untuk mengatur website/email/contact serta subkategori (mis. `High Pressure Laminate`, `Homogeneous Tile`).  
+   - Gunakan field “link new subcategory” untuk menambah/bind subkategori baru.
+
+---
+
+### 7. Repository Notes
+
+- Fitur yang sudah di‑drop: dashboard Insights, trending API, total biaya (grand total) di schedule, dan editor `/schedule` lama.
+- Seed (`prisma/seed.ts`) hanya membersihkan database dan menyiapkan user `anonymous`; seluruh data nyata berasal dari CSV dan input user.
+- UI tetap mengikuti styling Z.ai; perubahan hanya pada wiring logic dan API supaya cocok dengan workflow *Material Scheduler* + katalog produk. 
+
