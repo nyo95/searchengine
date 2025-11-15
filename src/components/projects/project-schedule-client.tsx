@@ -9,6 +9,9 @@ import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRo
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { FileTextIcon } from 'lucide-react'
+import { toast } from 'sonner'
 
 type Item = {
   id: string
@@ -41,36 +44,75 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
   const router = useRouter()
   const [items, setItems] = useState<Item[]>([])
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([])
-  const [materialTypes, setMaterialTypes] = useState<string[]>([])
   const [productTypes, setProductTypes] = useState<{ id: string; name: string }[]>([])
   const [skuOptions, setSkuOptions] = useState<Record<string, ProductOption[]>>({})
   const [loading, setLoading] = useState(true)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const USER_ID = 'anonymous'
   const [showAdd, setShowAdd] = useState(false)
-  const [newNotes, setNewNotes] = useState('')
+  const [newProduct, setNewProduct] = useState({ brandId: '', productTypeId: '', sku: '', name: '', notes: '' })
 
   useEffect(() => {
     fetchItems()
     fetchMeta()
   }, [scheduleId])
 
+  const fetchSkus = async (itemId: string, brandName: string, productTypeName: string) => {
+    if (!brandName || !productTypeName) {
+      setSkuOptions((prev) => ({ ...prev, [itemId]: [] }))
+      return
+    }
+    try {
+      const res = await fetch(`/api/search?brand=${encodeURIComponent(brandName)}&productType=${encodeURIComponent(productTypeName)}`)
+      if (!res.ok) throw new Error('Failed to fetch SKUs')
+      const data = await res.json()
+      const options: ProductOption[] = (data.products || []).map((p: any) => ({
+        id: p.id, sku: p.sku, name: p.name, brandId: p.brandId, brandName: p.brand.name, productTypeId: p.productTypeId, productTypeName: p.productType.name,
+      }))
+      setSkuOptions((prev) => ({ ...prev, [itemId]: options }))
+    } catch (error) {
+      console.error('Fetch SKU error:', error)
+      setSkuOptions((prev) => ({ ...prev, [itemId]: [] }))
+    }
+  }
+
   const fetchItems = async () => {
     setLoading(true)
     const res = await fetch(`/api/schedule/items?scheduleId=${scheduleId}`)
     const data = await res.json()
-    setItems(data.items || [])
+    const fetchedItems: Item[] = data.items || []
+    setItems(fetchedItems)
     setLoading(false)
+    fetchedItems.forEach(item => {
+      const materialType = item.attributes?.materialType
+      if (item.brandName && materialType) {
+        fetchSkus(item.id, item.brandName, materialType)
+      }
+    })
   }
 
   const handleImportCSV = async (file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    form.append('scheduleId', scheduleId)
-    form.append('userId', USER_ID)
-    const res = await fetch('/api/schedule/items/import', { method: 'POST', body: form })
-    if (res.ok) await fetchItems()
-    if (fileRef.current) fileRef.current.value = ''
+    const toastId = toast.loading('Mengimpor CSV...')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('scheduleId', scheduleId)
+      form.append('userId', USER_ID)
+      const res = await fetch('/api/schedule/items/import', { method: 'POST', body: form })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Gagal mengimpor CSV' }))
+        throw new Error(errorData.error)
+      }
+
+      await fetchItems()
+      toast.success('CSV berhasil diimpor', { id: toastId })
+    } catch (error: any) {
+      console.error('Import CSV error:', error)
+      toast.error(`Gagal mengimpor: ${error.message}`, { id: toastId })
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   const fetchMeta = async () => {
@@ -82,35 +124,38 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
     const typesData = await typesRes.json()
     setBrands((meta.brands || []).map((b: any) => ({ id: b.id, name: b.name })))
     setProductTypes((typesData.productTypes || []).map((pt: any) => ({ id: pt.id, name: pt.name })))
-    const unique = new Set<string>()
-    items.forEach((i) => {
-      const t = String(i.attributes?.materialType || '').trim()
-      if (t) unique.add(t)
-    })
-    setMaterialTypes(Array.from(unique))
   }
 
-  const saveInline = async (itemId: string, patch: Partial<Item> & { materialType?: string }) => {
+  const saveInline = async (itemId: string, patch: Partial<Item> & { brandId?: string, productTypeId?: string }) => {
     const item = items.find((i) => i.id === itemId)
     if (!item) return
-    const body = {
-      itemId,
-      updates: {
-        productId: patch.productId ?? item.productId ?? null,
-        productName: patch.productName ?? item.productName,
-        brandName: patch.brandName ?? item.brandName,
-        sku: patch.sku ?? item.sku,
-        quantity: patch.quantity ?? item.quantity,
-        unitOfMeasure: patch.unitOfMeasure ?? item.unitOfMeasure,
-        area: patch.area ?? item.area ?? null,
-        notes: patch.notes ?? item.notes ?? null,
-        attributes: { ...(item.attributes || {}), materialType: patch.materialType ?? item.attributes?.materialType },
-      },
-    }
-    const res = await fetch('/api/schedule/items', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (res.ok) {
+
+    const toastId = toast.loading('Menyimpan perubahan...')
+    try {
+      const updatesPayload: any = { ...patch }
+
+      // Look up brandName from brandId if present
+      if (patch.brandId) {
+          const brand = brands.find(b => b.id === patch.brandId)
+          updatesPayload.brandName = brand?.name
+      }
+
+      // Look up materialType from productTypeId if present
+      if (patch.productTypeId) {
+          const productType = productTypes.find(pt => pt.id === patch.productTypeId)
+          updatesPayload.materialType = productType?.name
+      }
+
+      const body = { itemId, updates: patch }
+      const res = await fetch('/api/schedule/items', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error('Gagal menyimpan ke server')
+
       const data = await res.json()
       setItems((prev) => prev.map((i) => (i.id === data.item.id ? data.item : i)))
+      toast.success('Perubahan berhasil disimpan', { id: toastId })
+    } catch (error) {
+      console.error('Save inline error:', error)
+      toast.error('Gagal menyimpan perubahan', { id: toastId })
     }
   }
 
@@ -137,50 +182,105 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
               <Button variant="outline" size="sm" disabled>Export PDF</Button>
               <Dialog open={showAdd} onOpenChange={setShowAdd}>
                 <DialogTrigger asChild>
-                  <Button size="sm">Add Material</Button>
+                  <Button size="sm">Tambah Produk Baru</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add Material</DialogTitle>
-                    <DialogDescription>Tambah satu baris kosong ke schedule ini.</DialogDescription>
+                    <DialogTitle>Tambah Produk Baru ke Katalog</DialogTitle>
+                    <DialogDescription>
+                      Buat produk baru dan tambahkan ke jadwal ini.
+                    </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Brand</Label>
+                      <Select value={newProduct.brandId} onValueChange={(value) => setNewProduct(p => ({ ...p, brandId: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Pilih Brand" /></SelectTrigger>
+                        <SelectContent>{brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Product Type</Label>
+                      <Select value={newProduct.productTypeId} onValueChange={(value) => setNewProduct(p => ({ ...p, productTypeId: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Pilih Tipe Produk" /></SelectTrigger>
+                        <SelectContent>{productTypes.map(pt => <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>SKU</Label>
+                      <Input value={newProduct.sku} onChange={(e) => setNewProduct(p => ({ ...p, sku: e.target.value }))} placeholder="SKU Produk" />
+                    </div>
+                    <div>
+                      <Label>Product Name</Label>
+                      <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} placeholder="Nama Produk" />
+                    </div>
                     <div>
                       <Label>Notes (optional)</Label>
-                      <Input
-                        value={newNotes}
-                        onChange={(e) => setNewNotes(e.target.value)}
-                        placeholder="Optional notes"
-                      />
+                      <Input value={newProduct.notes} onChange={(e) => setNewProduct(p => ({ ...p, notes: e.target.value }))} placeholder="Catatan tambahan" />
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-4">
                       <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
                       <Button
+                        disabled={!newProduct.brandId || !newProduct.productTypeId || !newProduct.sku || !newProduct.name}
                         onClick={async () => {
+                          const toastId = toast.loading('Membuat produk baru...')
                           try {
-                            const res = await fetch('/api/schedule/items/manual', {
+                            // 1. Create new product in catalog
+                            const productRes = await fetch('/api/products', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                scheduleId,
-                                userId: USER_ID,
-                                notes: newNotes,
+                                name: newProduct.name,
+                                sku: newProduct.sku,
+                                brandId: newProduct.brandId,
+                                productTypeId: newProduct.productTypeId,
                               }),
                             })
-                            const data = await res.json()
-                            if (res.ok && data.item) {
-                              setItems((prev) => [data.item, ...prev])
-                              setShowAdd(false)
-                              setNewNotes('')
-                            } else {
-                              console.error('Add material failed', data)
+
+                            if (!productRes.ok) {
+                              throw new Error('Gagal membuat produk')
                             }
-                          } catch (err) {
-                            console.error('Add material error', err)
+                            const { product } = await productRes.json()
+                            toast.loading('Menambahkan produk ke jadwal...', { id: toastId })
+
+                            // 2. Add the new product to the current schedule
+                            const selectedBrand = brands.find(b => b.id === newProduct.brandId)
+                            const selectedProductType = productTypes.find(pt => pt.id === newProduct.productTypeId)
+
+                            const scheduleItemRes = await fetch('/api/schedule/items', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    scheduleId,
+                                    userId: USER_ID,
+                                    productId: product.id,
+                                    productName: product.name,
+                                    brandName: selectedBrand?.name || '',
+                                    sku: product.sku,
+                                    notes: newProduct.notes,
+                                    attributes: {
+                                        materialType: selectedProductType?.name || '',
+                                    },
+                                }),
+                            })
+
+                            if (!scheduleItemRes.ok) {
+                                throw new Error('Gagal menambahkan produk ke jadwal')
+                            }
+
+                            // 3. Reset form and refresh schedule
+                            setNewProduct({ brandId: '', productTypeId: '', sku: '', name: '', notes: '' })
+                            setShowAdd(false)
+                            await fetchItems()
+                            toast.success('Produk berhasil dibuat dan ditambahkan', { id: toastId })
+
+                          } catch (error: any) {
+                            console.error('Failed to create and add new product', error)
+                            toast.error(`Operasi gagal: ${error.message}`, { id: toastId })
                           }
                         }}
                       >
-                        Add
+                        Create and Add
                       </Button>
                     </div>
                   </div>
@@ -203,7 +303,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                 </TableHeader>
                 <TableBody>
                   {items.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} className={item.productId ? 'bg-muted/50' : ''}>
                       <TableCell>
                         <Input
                           value={String((item.attributes && item.attributes.code) || '')}
@@ -212,16 +312,22 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={String(item.attributes?.materialType || '')}
-                          onValueChange={(value) => saveInline(item.id, { materialType: value })}
+                          value={productTypes.find(pt => pt.name === item.attributes?.materialType)?.id || ''}
+                          onValueChange={(value) => {
+                              const productType = productTypes.find(pt => pt.id === value)
+                              if (productType) {
+                                  saveInline(item.id, { productTypeId: value, sku: '', productId: null, productName: 'Belum terhubung' })
+                                  fetchSkus(item.id, item.brandName, productType.name)
+                              }
+                          }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
+                            <SelectValue placeholder="Belum dipilih" />
                           </SelectTrigger>
                           <SelectContent>
-                            {materialTypes.map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
+                            {productTypes.map((pt) => (
+                              <SelectItem key={pt.id} value={pt.id}>
+                                {pt.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -229,15 +335,21 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={item.brandName || ''}
-                          onValueChange={(value) => saveInline(item.id, { brandName: value })}
+                          value={brands.find(b => b.name === item.brandName)?.id || ''}
+                          onValueChange={(value) => {
+                            const brand = brands.find(b => b.id === value)
+                            if (brand) {
+                                saveInline(item.id, { brandId: value, sku: '', productId: null, productName: 'Belum terhubung' })
+                                fetchSkus(item.id, brand.name, item.attributes?.materialType)
+                            }
+                          }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select brand" />
+                            <SelectValue placeholder="Belum dipilih" />
                           </SelectTrigger>
                           <SelectContent>
                             {brands.map((b) => (
-                              <SelectItem key={b.id} value={b.name}>
+                              <SelectItem key={b.id} value={b.id}>
                                 {b.name}
                               </SelectItem>
                             ))}
@@ -245,15 +357,55 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Input value={item.sku} readOnly />
+                        <Select
+                          value={item.sku || ''}
+                          disabled={!item.brandName || !item.attributes?.materialType}
+                          onValueChange={(value) => {
+                            const selectedProduct = skuOptions[item.id]?.find(p => p.sku === value)
+                            if (selectedProduct) {
+                              saveInline(item.id, {
+                                sku: value,
+                                productId: selectedProduct.id,
+                                productName: selectedProduct.name,
+                              })
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Belum terhubung" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(skuOptions[item.id] || []).map((p) => (
+                              <SelectItem key={p.id} value={p.sku}>
+                                {p.sku}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-muted-foreground">
-                          {item.notes || '-'}
-                        </span>
+                        {item.notes ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <FileTextIcon className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{item.notes}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => item.productId && router.push(`/product/${item.productId}`)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!item.productId}
+                          onClick={() => item.productId && router.push(`/product/${item.productId}`)}
+                        >
                           Edit Product
                         </Button>
                       </TableCell>
@@ -261,7 +413,7 @@ export function ProjectScheduleClient({ scheduleId }: ProjectScheduleClientProps
                   ))}
                   {!items.length && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">No items. Import CSV atau tambahkan dari Search.</TableCell>
+                      <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">No items. Import CSV atau tambahkan dari Search.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

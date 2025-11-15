@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
 
     for (const r of dataRows) {
       const materialType = safeAt(r, idx.materialType)
-      const brandNameRaw = safeAt(r, idx.brand)
-      const skuRaw = safeAt(r, idx.sku)
+      const brandName = safeAt(r, idx.brand)
+      const sku = safeAt(r, idx.sku)
       const code = safeAt(r, idx.code)
       const notes = safeAt(r, idx.notes)
       const quantityRaw = safeAt(r, idx.quantity)
@@ -56,43 +56,36 @@ export async function POST(request: NextRequest) {
       const unitOfMeasure = safeAt(r, idx.uom) || 'pcs'
       const area = safeAt(r, idx.area) || null
 
-      let rowBrand = brandNameRaw
-      let rowSku = skuRaw
-      let productId: string | null = null
-      let productName = rowSku || materialType || code || ''
+      const foundProduct = await findProductInCatalog({ brandName, sku })
+      const productId = foundProduct?.id || null
+      const productTypeId = foundProduct?.productTypeId || null
+      const brandId = foundProduct?.brandId || null
+      const productName = sku || materialType || code || 'Untitled'
 
-      // Jika brand & sku lengkap, link ke katalog; jika tidak, hanya buat baris schedule tanpa productId
-      if (rowBrand && rowSku) {
-        const { product, brand } = await minimalLinkProduct({ brandName: rowBrand, sku: rowSku, materialType })
-        productId = product.id
-        rowBrand = brand.name
-        rowSku = product.sku
-        productName = product.name
-      }
-
-      // Dedup per (scheduleId, brandName, sku) termasuk baris tanpa productId
+      // Dedup per (scheduleId, code, brandName, sku)
       const existing = await db.scheduleItem.findFirst({
-        where: { scheduleId, brandName: rowBrand || '', sku: rowSku || '' },
+        where: { scheduleId, brandName, sku, attributes: { path: ['code'], equals: code } },
         select: { id: true },
       })
+
       if (!existing) {
         await db.scheduleItem.create({
           data: {
             scheduleId,
             productId,
-            variantId: null,
+            productTypeId,
+            brandId,
             productName,
-            brandName: rowBrand || '',
-            sku: rowSku || '',
-            price: 0,
-            attributes: {
-              ...(materialType ? { materialType } : {}),
-              ...(code ? { code } : {}),
-            },
+            brandName,
+            sku,
             quantity,
             unitOfMeasure,
             area,
             notes,
+            attributes: {
+              ...(materialType && { materialType }),
+              ...(code && { code }),
+            },
           },
         })
         imported++
@@ -147,76 +140,32 @@ function safeAt(arr: string[], idx: number) {
   return (arr[idx] || '').trim()
 }
 
-async function minimalLinkProduct({ brandName, sku, materialType }: { brandName: string; sku: string; materialType?: string }) {
-  const parentName = classifyCategoryFromType(materialType)
-
-  // Parent category (Material / Lighting / Furniture)
-  let parent = await db.category.findFirst({ where: { name: parentName, parentId: null } })
-  if (!parent) {
-    parent = await db.category.create({
-      data: { name: parentName, nameEn: parentName },
-    })
-  }
-
-  // Subcategory based on materialType (e.g. \"High Pressure Laminate\")
-  let subcategoryId: string | null = null
-  if (materialType && materialType.trim()) {
-    let sub = await db.category.findFirst({
-      where: { name: materialType.trim(), parentId: parent.id },
-    })
-    if (!sub) {
-      sub = await db.category.create({
-        data: { name: materialType.trim(), nameEn: materialType.trim(), parentId: parent.id },
-      })
+async function findProductInCatalog({ brandName, sku }: { brandName: string; sku: string }): Promise<{ id: string; productTypeId: string; brandId: string } | null> {
+    if (!brandName || !sku) {
+        return null
     }
-      subcategoryId = sub.id
-    await ensureSubcategorySynonyms(sub.name)
-  }
 
-  const brand = await db.brand.upsert({
-    where: { name: brandName },
-    update: {},
-    create: {
-      name: brandName,
-      nameEn: brandName,
-      categoryId: parent.id,
-    },
-  })
-
-  // Link brand to subcategory for brand details UI
-  if (subcategoryId) {
-    await db.brandSubcategory.upsert({
-      where: { brandId_subcategoryId: { brandId: brand.id, subcategoryId } },
-      update: {},
-      create: { brandId: brand.id, subcategoryId },
+    const product = await db.product.findFirst({
+        where: {
+            sku: {
+                equals: sku,
+                mode: 'insensitive'
+            },
+            brand: {
+                name: {
+                    equals: brandName,
+                    mode: 'insensitive'
+                }
+            }
+        },
+        select: {
+            id: true,
+            productTypeId: true,
+            brandId: true
+        }
     })
-  }
 
-  const ptName = materialType || 'Generic'
-  let productType = await db.productType.findFirst({ where: { name: ptName, brandId: brand.id } })
-  if (!productType) {
-    productType = await db.productType.create({
-      data: {
-        name: ptName,
-        brandId: brand.id,
-        subcategoryId: subcategoryId ?? undefined,
-      },
-    })
-  }
-
-  let product = await db.product.findFirst({ where: { sku, brandId: brand.id } })
-  if (!product) {
-    product = await db.product.create({
-      data: {
-        sku,
-        name: sku,
-        productTypeId: productType.id,
-        brandId: brand.id,
-        categoryId: subcategoryId ?? parent.id,
-      },
-    })
-  }
-  return { product, brand }
+    return product ? { id: product.id, productTypeId: product.productTypeId, brandId: product.brandId } : null
 }
 
 function classifyCategoryFromType(type?: string | null) {

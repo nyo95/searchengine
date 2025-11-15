@@ -156,19 +156,19 @@ export async function PATCH(request: NextRequest) {
       updates: Partial<{
         productId: string | null
         productName: string
-        brandName: string
+        brandId: string
+        productTypeId: string
         sku: string
         attributes: Record<string, unknown>
         quantity: number
         unitOfMeasure: string
         area: string | null
         notes: string | null
-        materialType?: string
       }>
     }
 
     if (!itemId || !updates) {
-      return NextResponse.json({ error: 'itemId and updates required' }, { status: 400 })
+      return NextResponse.json({ error: 'itemId and updates are required' }, { status: 400 })
     }
 
     const item = await db.scheduleItem.findUnique({ where: { id: itemId } })
@@ -178,28 +178,46 @@ export async function PATCH(request: NextRequest) {
       await ensureScheduleOwnership(item.scheduleId, userId)
     }
 
-    const nextAttributes =
-      (updates.attributes as any) ?? item.attributes ?? {}
+    const dataToUpdate: Prisma.ScheduleItemUpdateInput = {}
 
-    // Keep convenience materialType in attributes for UI
-    if (typeof updates.materialType === 'string') {
-      ;(nextAttributes as any).materialType = updates.materialType
+    // Validate that 'code' is not being changed if it exists.
+    const currentAttributes = item.attributes as any || {}
+    const incomingAttributes = updates.attributes as any || {}
+    if (currentAttributes.code && incomingAttributes.code && currentAttributes.code !== incomingAttributes.code) {
+        return NextResponse.json({ error: "The 'code' field cannot be changed after creation." }, { status: 400 })
     }
+
+    const nextAttributes = { ...currentAttributes, ...incomingAttributes }
+
+    if (updates.brandId) {
+      const brand = await db.brand.findUnique({ where: { id: updates.brandId } })
+      if (brand) {
+        dataToUpdate.brandName = brand.name
+        dataToUpdate.brandId = updates.brandId
+      }
+    }
+
+    if (updates.productTypeId) {
+        const productType = await db.productType.findUnique({ where: { id: updates.productTypeId } })
+        if (productType) {
+            nextAttributes.materialType = productType.name
+            dataToUpdate.productTypeId = updates.productTypeId
+        }
+    }
+
+    if (updates.productId !== undefined) dataToUpdate.productId = updates.productId
+    if (updates.productName) dataToUpdate.productName = updates.productName
+    if (updates.sku) dataToUpdate.sku = updates.sku
+    if (updates.quantity) dataToUpdate.quantity = updates.quantity
+    if (updates.unitOfMeasure) dataToUpdate.unitOfMeasure = updates.unitOfMeasure
+    if (updates.area !== undefined) dataToUpdate.area = updates.area
+    if (updates.notes !== undefined) dataToUpdate.notes = updates.notes
+    dataToUpdate.attributes = nextAttributes
+
 
     const updated = await db.scheduleItem.update({
       where: { id: itemId },
-      data: {
-        productId:
-          updates.productId === undefined ? item.productId : updates.productId,
-        productName: updates.productName ?? item.productName,
-        brandName: updates.brandName ?? item.brandName,
-        sku: updates.sku ?? item.sku,
-        attributes: nextAttributes,
-        quantity: updates.quantity ?? item.quantity,
-        unitOfMeasure: updates.unitOfMeasure ?? item.unitOfMeasure,
-        area: updates.area ?? item.area,
-        notes: updates.notes ?? item.notes,
-      },
+      data: dataToUpdate,
     })
 
     return NextResponse.json({ item: serializeScheduleItem(updated) })
