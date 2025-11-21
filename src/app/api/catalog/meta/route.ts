@@ -8,8 +8,7 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           name: true,
-          nameEn: true,
-          parentId: true,
+          normalizedName: true,
           _count: { select: { products: true } },
         },
         orderBy: { name: 'asc' },
@@ -30,7 +29,8 @@ export async function GET(request: NextRequest) {
       categories: categories.map((category) => ({
         id: category.id,
         name: category.name,
-        nameEn: category.nameEn,
+        nameEn: null,
+        normalizedName: category.normalizedName,
         productsCount: category._count.products,
       })),
       brands: brands.map((brand) => ({

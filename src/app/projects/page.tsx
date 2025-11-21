@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
+import { AppLayout } from '@/components/layout/app-layout';
 
 export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +58,8 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8 space-y-6 max-w-7xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Projects</h1>
@@ -186,5 +188,6 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
     </div>
+    </AppLayout>
   );
 }

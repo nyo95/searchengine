@@ -1,37 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 
+// ProductType model is not defined in the current Prisma schema; return an empty list
+// so the UI can still render without backend support.
 export async function GET(_request: NextRequest) {
-  try {
-    const productTypes = await db.productType.findMany({
-      select: {
-        id: true,
-        name: true,
-        nameEn: true,
-        brandId: true,
-        subcategoryId: true,
-        subcategory: {
-          select: {
-            id: true,
-            name: true,
-            nameEn: true,
-            parent: {
-              select: {
-                id: true,
-                name: true,
-                nameEn: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { name: 'asc' },
-    })
-
-    return NextResponse.json({ productTypes })
-  } catch (error) {
-    console.error('Product types meta error:', error)
-    return NextResponse.json({ error: 'Failed to fetch product types' }, { status: 500 })
-  }
+  return NextResponse.json({ productTypes: [] })
 }
 

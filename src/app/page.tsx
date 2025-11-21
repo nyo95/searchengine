@@ -1,114 +1,268 @@
-'use client'
+'use client';
 
-import { Calendar, Compass, Layers, Search } from 'lucide-react'
-import { ProductCatalogTab } from '@/components/product/product-catalog-tab'
-import { ProjectScheduleTab } from '@/components/projects/project-schedule-tab'
-import { SidebarMenu } from '@/components/navigation/sidebar-menu'
-
-const USER_ID = 'anonymous'
-
-const workflowPhases = [
-  {
-    title: 'Discovery Phase',
-    description: 'Search → Materials → Categories to lock metadata sebelum masuk planning.',
-    icon: Search,
-    bullets: ['Cari berdasarkan nama/SKU/brand', 'Simpan kategori/subkategori untuk mencegah duplikat'],
-  },
-  {
-    title: 'Planning Phase',
-    description: 'Projects → Templates → New Project agar satu blueprint bisa diulang.',
-    icon: Layers,
-    bullets: ['Pilih template, pindahkan ke proyek baru', 'Kaitkan brand + prefix subkategori'],
-  },
-  {
-    title: 'Execution Phase',
-    description: 'Project Detail → Schedule Items untuk swap kode & validasi prefix.',
-    icon: Calendar,
-    bullets: ['Pantau kode prefix/nomor unik', 'Swap hanya untuk material dengan prefix sama'],
-  },
-  {
-    title: 'Resource Phase',
-    description: 'Brands → Contacts → Supplier Portal untuk koordinasi vendor.',
-    icon: Compass,
-    bullets: ['Review data brand', 'Kelola kontak sales per subkategori'],
-  },
-]
-
-const stats = [
-  { title: 'Projects aktif', value: '12', meta: '2 baru ditambahkan minggu ini' },
-  { title: 'Products tersimpan', value: '1.084', meta: '78 kategori terdaftar' },
-  { title: 'Schedule codes', value: '214', meta: '98% prefix valid' },
-  { title: 'Brand partnerships', value: '38', meta: '14 contact sales di-update' },
-]
+import { useState } from 'react';
+import { useSearchProducts, useCatalogMeta } from '@/hooks/useProducts';
+import { AppLayout } from '@/components/layout/app-layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Search, X, Eye, Edit } from 'lucide-react';
+import { ProductSheet } from '@/components/ProductSheet';
+import { useBrands } from '@/hooks/useBrands';
 
 export default function HomePage() {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const ALL_BRANDS = '__ALL_BRANDS__';
+  const ALL_CATEGORIES = '__ALL_CATEGORIES__';
+  const ALL_SUBCATEGORIES = '__ALL_SUBCATEGORIES__';
+
+  const [selectedBrandId, setSelectedBrandId] = useState<string>(ALL_BRANDS);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(ALL_CATEGORIES);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>(ALL_SUBCATEGORIES);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
+
+  const { data: searchResult, isLoading } = useSearchProducts({
+    q: searchQuery || undefined,
+    brandId: selectedBrandId === ALL_BRANDS ? undefined : selectedBrandId,
+    categoryId: selectedCategoryId === ALL_CATEGORIES ? undefined : selectedCategoryId,
+    subcategoryId:
+      selectedSubcategoryId === ALL_SUBCATEGORIES ? undefined : selectedSubcategoryId,
+    page: 1,
+    pageSize: 50,
+    isActive: true,
+  });
+
+  const { data: catalogMeta } = useCatalogMeta();
+  const { data: brands } = useBrands();
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Search is triggered automatically by the query
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedBrandId(ALL_BRANDS);
+    setSelectedCategoryId(ALL_CATEGORIES);
+    setSelectedSubcategoryId(ALL_SUBCATEGORIES);
+  };
+
+  const handleViewProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setIsProductSheetOpen(true);
+  };
+
+  const handleEditProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setIsProductSheetOpen(true);
+  };
+
+  const hasActiveFilters =
+    Boolean(searchQuery) ||
+    selectedBrandId !== ALL_BRANDS ||
+    selectedCategoryId !== ALL_CATEGORIES ||
+    selectedSubcategoryId !== ALL_SUBCATEGORIES;
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <SidebarMenu className="lg:sticky lg:top-6" />
-        <main className="space-y-6">
-          <section className="space-y-3 rounded-2xl bg-card/70 border border-border/60 p-6 shadow-xl shadow-slate-900/40">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm uppercase tracking-wider text-muted-foreground">Overview</p>
-                <h1 className="text-3xl font-semibold">Project Control Center</h1>
-                <p className="text-sm text-muted-foreground">
-                  Menu diatur berdasarkan workflow (discovery → planning → execution → resource).
-                </p>
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8 space-y-6 max-w-7xl">
+        <div>
+          <h1 className="text-3xl font-bold">Material Search Engine</h1>
+          <p className="text-muted-foreground">Search materials, SKU, or brand</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Search</CardTitle>
+            <CardDescription>Find products by name, SKU, brand, or category</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleSearch} className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search materials, SKU, or brand..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearch(e);
+                    }
+                  }}
+                />
               </div>
-              <span className="rounded-full bg-primary/20 px-4 py-2 text-sm font-semibold text-primary">
-                Sistem Online
-              </span>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {stats.map((stat) => (
-                <div key={stat.title} className="rounded-xl bg-background/60 p-4 shadow-inner shadow-slate-900/20">
-                  <p className="text-sm uppercase text-muted-foreground">{stat.title}</p>
-                  <p className="text-3xl font-semibold text-foreground">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground">{stat.meta}</p>
-                </div>
-              ))}
-            </div>
-          </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <div className="glass-panel">
-              <h2 className="text-lg font-semibold text-foreground">Material Catalog Snapshot</h2>
-              <p className="text-sm text-muted-foreground">
-                Fokus discovery: bisa cari berdasarkan kategori, brand, atau SKU untuk memastikan metadata lengkap.
-              </p>
-              <ProductCatalogTab userId={USER_ID} />
-            </div>
-            <div className="glass-panel">
-              <h2 className="text-lg font-semibold text-foreground">Project Schedule Quick View</h2>
-              <p className="text-sm text-muted-foreground">
-                Eksekusi: view baris schedule, cek kode prefix/nomor, dan lihat fitur swap di satu tempat.
-              </p>
-              <ProjectScheduleTab userId={USER_ID} />
-            </div>
-          </section>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Select value={selectedBrandId} onValueChange={setSelectedBrandId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Brands" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_BRANDS}>All Brands</SelectItem>
+                    {brands?.map((brand) => (
+                      <SelectItem key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <section className="grid gap-4 md:grid-cols-2">
-            {workflowPhases.map((phase) => (
-              <article key={phase.title} className="glass-panel">
-                <div className="flex items-center gap-2">
-                  <phase.icon className="h-5 w-5 text-primary" />
-                  <h3 className="text-base font-semibold text-foreground">{phase.title}</h3>
+                <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_CATEGORIES}>All Categories</SelectItem>
+                    {catalogMeta?.categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex gap-2">
+                  <Select value={selectedSubcategoryId} onValueChange={setSelectedSubcategoryId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Subcategories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_SUBCATEGORIES}>All Subcategories</SelectItem>
+                      {/* Subcategories would need to be fetched separately or from catalog meta */}
+                    </SelectContent>
+                  </Select>
+                  {hasActiveFilters && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleResetFilters}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground">{phase.description}</p>
-                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {phase.bullets.map((bullet) => (
-                    <li key={bullet} className="flex items-center gap-2">
-                      <span className="h-1 w-1 rounded-full bg-primary" />
-                      {bullet}
-                    </li>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Results</CardTitle>
+            <CardDescription>
+              {searchResult
+                ? `Found ${searchResult.total} product${searchResult.total !== 1 ? 's' : ''}`
+                : 'Enter a search query to find products'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : searchResult?.items.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                {searchQuery || hasActiveFilters
+                  ? 'No products found matching your search.'
+                  : 'Enter a search query or select filters to find products.'}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Brand</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Subcategory</TableHead>
+                    <TableHead>Internal Code</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {searchResult?.items.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.brand.name}</TableCell>
+                      <TableCell>{product.category?.name || '-'}</TableCell>
+                      <TableCell>
+                        {product.subcategory?.name || '-'}
+                        {product.subcategory?.prefix && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({product.subcategory.prefix})
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{product.internalCode}</TableCell>
+                      <TableCell>
+                        <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                          {product.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewProduct(product.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditProduct(product.id)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </ul>
-              </article>
-            ))}
-          </section>
-        </main>
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedProductId && (
+          <ProductSheet
+            productId={selectedProductId}
+            open={isProductSheetOpen}
+            onOpenChange={setIsProductSheetOpen}
+            onClose={() => {
+              setSelectedProductId(null);
+              setIsProductSheetOpen(false);
+            }}
+          />
+        )}
       </div>
-    </div>
-  )
+    </AppLayout>
+  );
 }
