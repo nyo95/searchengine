@@ -1,193 +1,157 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useProjects, useDeleteProject } from '@/hooks/useProjects';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Edit, Trash2, Calendar } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
-import { AppLayout } from '@/components/layout/app-layout';
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { AppLayout } from "@/components/layout/app-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, Plus, Trash2, Pencil } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useProjects, useDeleteProject } from "@/hooks/useProjects";
 
 export default function ProjectsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const deleteProject = useDeleteProject();
-
-  const { data: projects, isLoading, error } = useProjects(
-    searchQuery ? { q: searchQuery } : undefined
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data: projects, isLoading, error, refetch } = useProjects(
+    searchQuery ? { q: searchQuery } : undefined,
   );
+  const deleteProject = useDeleteProject();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => projects || [], [projects]);
 
   const handleDelete = async (id: string) => {
-    await deleteProject.mutateAsync(id);
-    setDeleteId(null);
+    if (!confirm("Delete this project?")) return;
+    try {
+      setDeletingId(id);
+      await deleteProject.mutateAsync(id);
+      refetch();
+    } finally {
+      setDeletingId(null);
+    }
   };
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive">Failed to load projects. Please try again.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-8 space-y-6 max-w-7xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Projects</h1>
-          <p className="text-muted-foreground">Manage your projects</p>
+      <div className="px-4 md:px-6 py-6 max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">Projects</h2>
+            <p className="text-sm text-muted-foreground">Manage your projects and schedules</p>
+          </div>
+          <Link href="/projects/new">
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              New Project
+            </Button>
+          </Link>
         </div>
-        <Link href="/projects/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
-        </Link>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Project List</CardTitle>
-          <CardDescription>All projects in the system</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search projects..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+        <div>
+          <Input
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {error && (
+          <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-destructive">
+                Failed to load projects. Please try again.
+              </p>
             </div>
           </div>
+        )}
 
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
+        {isLoading ? (
+          <Card className="border border-border">
+            <CardContent className="p-4 space-y-3">
+              {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {projects?.length === 0 ? (
+            </CardContent>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <Card className="border border-border">
+            <CardContent className="p-10 text-center space-y-2">
+              <p className="text-muted-foreground">
+                {searchQuery ? "No projects match your search." : "No projects yet."}
+              </p>
+              <Link href="/projects/new">
+                <Button variant="outline" className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create First Project
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      {searchQuery ? 'No projects found matching your search.' : 'No projects found. Create a new project to get started.'}
-                    </TableCell>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  projects?.map((project) => (
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((project) => (
                     <TableRow key={project.id}>
-                      <TableCell className="font-mono text-sm font-medium">{project.code}</TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/projects/${project.id}`}
-                          className="font-medium hover:underline"
-                        >
+                      <TableCell className="font-medium text-sm">
+                        <Link href={`/projects/${project.id}/edit`} className="hover:underline">
                           {project.name}
                         </Link>
+                        {project.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {project.description}
+                          </p>
+                        )}
                       </TableCell>
-                      <TableCell>{project.clientName || <span className="text-muted-foreground">-</span>}</TableCell>
-                      <TableCell>{project.location || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{project.itemCount}</Badge>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">{project.code}</code>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(project.createdAt), 'MMM d, yyyy')}
+                        {project.clientName || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {project.itemCount ?? 0}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/projects/${project.id}/items`}>
-                            <Button variant="ghost" size="sm">
-                              <Calendar className="h-4 w-4" />
-                            </Button>
-                          </Link>
+                        <div className="flex justify-end gap-2">
                           <Link href={`/projects/${project.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="gap-2">
+                              <Pencil className="w-4 h-4" />
+                              Edit
                             </Button>
                           </Link>
-                          <AlertDialog open={deleteId === project.id} onOpenChange={(open) => !open && setDeleteId(null)}>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteId(project.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Project</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete &quot;{project.name}&quot;? This will also delete all schedule items. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(project.id)}
-                                  className="bg-destructive text-destructive-foreground"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive gap-2"
+                            onClick={() => handleDelete(project.id)}
+                            disabled={deletingId === project.id}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </div>
     </AppLayout>
   );
 }

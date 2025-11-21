@@ -1,164 +1,154 @@
-'use client';
+"use client"
 
-import { useSearchParams } from 'next/navigation';
-import { useSearchProducts } from '@/hooks/useProducts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { SearchBar } from '@/components/SearchBar';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { useSearchParams, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { AppLayout } from "@/components/layout/app-layout"
+import { SearchInput } from "@/components/search/search-input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { AlertCircle, ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { useSearchProducts } from "@/hooks/useProducts"
 
 export default function SearchPage() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get('q') || '';
-  const brandId = searchParams.get('brandId') || undefined;
-  const categoryId = searchParams.get('categoryId') || undefined;
-  const subcategoryId = searchParams.get('subcategoryId') || undefined;
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const query = searchParams.get("q") || ""
 
-  const { data: searchResult, isLoading, error } = useSearchProducts({
-    q: query,
-    brandId,
-    categoryId,
-    subcategoryId,
-    page,
-    pageSize: 20,
+  const [triggeredQuery, setTriggeredQuery] = useState(query)
+
+  useEffect(() => {
+    setTriggeredQuery(query)
+  }, [query])
+
+  const { data: result, isLoading, error } = useSearchProducts({
+    q: triggeredQuery,
     isActive: true,
-  });
+    page: 1,
+    pageSize: 50,
+  })
 
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive">Failed to search products. Please try again.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const products = result?.items || []
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">Search Products</h1>
-          <p className="text-muted-foreground">Find products in the catalog</p>
+    <AppLayout>
+      <div className="px-4 md:px-6 py-6 max-w-5xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h2 className="text-2xl font-semibold">Search</h2>
+            <p className="text-sm text-muted-foreground">Find products across the catalog</p>
+          </div>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Search</CardTitle>
-          <CardDescription>Enter keywords to search for products</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SearchBar />
-        </CardContent>
-      </Card>
+        <div className="mb-8">
+          <SearchInput
+            placeholder="Search products, brands, codes..."
+            onSearchSubmit={(nextQuery) => router.push(`/search?q=${encodeURIComponent(nextQuery)}`)}
+          />
+        </div>
 
-      {query && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Search Results</CardTitle>
-            <CardDescription>
-              {searchResult
-                ? `Found ${searchResult.total} product${searchResult.total !== 1 ? 's' : ''}`
-                : 'Searching...'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : searchResult?.items.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No products found matching &quot;{query}&quot;
+        {query && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold">
+              Results for <span className="text-muted-foreground">"{query}"</span>
+            </h3>
+            {!isLoading && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Found {result?.total ?? 0} result{(result?.total ?? 0) !== 1 ? "s" : ""}
               </p>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Internal Code</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchResult?.items.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                        <TableCell className="font-medium">
-                          <Link
-                            href={`/products/${product.id}/edit`}
-                            className="hover:underline"
-                          >
-                            {product.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{product.brand.name}</TableCell>
-                        <TableCell>
-                          {product.category?.name}
-                          {product.subcategory && ` / ${product.subcategory.name}`}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{product.internalCode}</TableCell>
-                        <TableCell>
-                          <Badge variant={product.isActive ? 'default' : 'secondary'}>
-                            {product.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {searchResult && searchResult.hasMore && (
-                  <div className="mt-4 text-center">
-                    <Link
-                      href={`/search?q=${encodeURIComponent(query)}&page=${page + 1}`}
-                    >
-                      <Button variant="outline">Load More</Button>
-                    </Link>
-                  </div>
-                )}
-              </>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {!query && (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              Enter a search query above to find products
-            </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+        {error && (
+          <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg flex items-start gap-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-destructive">Failed to fetch search results</p>
+            </div>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="p-4 border border-border rounded-lg">
+                <Skeleton className="h-5 w-1/3 mb-2" />
+                <Skeleton className="h-4 w-1/2 mb-3" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-8 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && products.length > 0 && (
+          <div className="grid gap-4">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="p-4 border border-border rounded-lg hover:bg-card/50 transition-colors duration-150"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-foreground truncate">{product.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Code: {product.internalCode} • SKU: {product.sku}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                      <Badge variant="secondary">{product.brand.name}</Badge>
+                      {product.subcategory?.name && (
+                        <Badge variant="secondary">{product.subcategory.name}</Badge>
+                      )}
+                      {product.dynamicAttributes && Object.keys(product.dynamicAttributes).length > 0 && (
+                        <Badge variant="outline">
+                          {Object.entries(product.dynamicAttributes)
+                            .map(([k, v]) => `${k}: ${String(v)}`)
+                            .join(", ")}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm">
+                      View
+                    </Button>
+                    <Button size="sm">Add to Project</Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && query && products.length === 0 && !error && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No products found matching your search.</p>
+            <p className="text-sm text-muted-foreground mt-1">Try different keywords or browse all products.</p>
+          </div>
+        )}
+
+        {!query && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Enter a search term to start.</p>
+          </div>
+        )}
+      </div>
+    </AppLayout>
+  )
 }

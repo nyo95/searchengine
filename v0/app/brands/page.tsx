@@ -1,61 +1,88 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AppLayout } from "@/components/layout/app-layout"
+import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, Plus, Trash2, Pencil } from "lucide-react"
 import { BrandModal } from "@/components/modals/brand-modal"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useBrands } from "@/hooks/useBrands"
+
+interface Brand {
+  id: string
+  name: string
+  website?: string
+  phone?: string
+  salesName?: string
+  salesContact?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface BrandsResponse {
+  brands: Brand[]
+}
 
 export default function BrandsPage() {
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null)
-  const { data: brands, isLoading, error, refetch } = useBrands()
-  const [errorText, setErrorText] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
 
   useEffect(() => {
-    setErrorText(error ? "Failed to load brands" : null)
-  }, [error])
+    fetchBrands()
+  }, [])
+
+  const fetchBrands = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch("/api/brands")
+      const data: BrandsResponse = await response.json()
+      setBrands(data.brands || [])
+    } catch (err) {
+      setError("Failed to fetch brands")
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAddBrand = () => {
-    setSelectedBrandId(null)
+    setSelectedBrand(null)
     setModalOpen(true)
   }
 
-  const handleEditBrand = (brandId: string) => {
-    setSelectedBrandId(brandId)
+  const handleEditBrand = (brand: Brand) => {
+    setSelectedBrand(brand)
     setModalOpen(true)
   }
 
   const handleDeleteBrand = async (brandId: string) => {
     if (!confirm("Delete this brand?")) return
     try {
-      setIsDeleting(true)
-      const response = await fetch(`/api/brands/${brandId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: false }),
-      })
-      if (!response.ok) throw new Error("Failed to delete brand")
-      refetch()
+      await fetch(`/api/brands/${brandId}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) })
+      setBrands((prev) => prev.filter((b) => b.id !== brandId))
     } catch (err) {
       console.error(err)
-      setErrorText("Failed to delete brand")
-    } finally {
-      setIsDeleting(false)
     }
   }
 
+  const handleModalClose = () => {
+    setModalOpen(false)
+    setSelectedBrand(null)
+    fetchBrands()
+  }
+
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="px-4 md:px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold">Brands</h2>
-            <p className="text-sm text-muted-foreground mt-1">{brands?.length ?? 0} brands</p>
+            <p className="text-sm text-muted-foreground mt-1">{brands.length} brands</p>
           </div>
           <Button onClick={handleAddBrand} className="gap-2">
             <Plus className="w-4 h-4" />
@@ -63,14 +90,14 @@ export default function BrandsPage() {
           </Button>
         </div>
 
-        {errorText && (
+        {error && (
           <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg flex items-start gap-3 mb-6">
             <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-destructive">{errorText}</p>
+            <p className="text-sm text-destructive">{error}</p>
           </div>
         )}
 
-        {isLoading ? (
+        {loading ? (
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="p-4 space-y-3">
               {[...Array(5)].map((_, i) => (
@@ -78,7 +105,7 @@ export default function BrandsPage() {
               ))}
             </div>
           </div>
-        ) : brands && brands.length === 0 ? (
+        ) : brands.length === 0 ? (
           <div className="border border-border rounded-lg p-12 text-center">
             <p className="text-muted-foreground mb-4">No brands found</p>
             <Button onClick={handleAddBrand} variant="outline" className="gap-2 bg-transparent">
@@ -95,25 +122,21 @@ export default function BrandsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Website</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead>Sales</TableHead>
+                    <TableHead>Sales Contact</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {brands?.map((brand) => (
+                  {brands.map((brand) => (
                     <TableRow key={brand.id}>
-                      <TableCell className="text-sm font-medium">{brand.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {brand.website || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{brand.phone || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {brand.salesName || brand.salesContact ? `${brand.salesName || ""} ${brand.salesContact || ""}` : "—"}
-                      </TableCell>
+                      <TableCell className="font-medium">{brand.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{brand.website || "-"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{brand.phone || "-"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{brand.salesName || "-"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                           <button
-                            onClick={() => handleEditBrand(brand.id)}
+                            onClick={() => handleEditBrand(brand)}
                             className="p-1.5 hover:bg-muted rounded transition-colors"
                             title="Edit"
                           >
@@ -121,9 +144,8 @@ export default function BrandsPage() {
                           </button>
                           <button
                             onClick={() => handleDeleteBrand(brand.id)}
-                            className="p-1.5 hover:bg-destructive/10 rounded transition-colors disabled:opacity-50"
+                            className="p-1.5 hover:bg-destructive/10 rounded transition-colors"
                             title="Delete"
-                            disabled={isDeleting}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </button>
@@ -137,13 +159,14 @@ export default function BrandsPage() {
           </div>
         )}
 
+        {/* Brand Modal */}
         <BrandModal
           open={modalOpen}
           onOpenChange={setModalOpen}
-          brand={brands?.find((b) => b.id === selectedBrandId)}
-          onSuccess={() => refetch()}
+          brand={selectedBrand || undefined}
+          onSuccess={handleModalClose}
         />
       </div>
-    </AppLayout>
+    </MainLayout>
   )
 }

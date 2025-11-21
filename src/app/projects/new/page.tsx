@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useCreateProject } from '@/hooks/useProjects';
-import { ProjectForm } from '@/components/ProjectForm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCreateProject } from "@/hooks/useProjects";
+import { ProjectForm } from "@/components/ProjectForm";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { AppLayout } from "@/components/layout/app-layout";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -14,37 +15,35 @@ export default function NewProjectPage() {
 
   const handleSubmit = async (data: any) => {
     await createProject.mutateAsync(data);
-    router.push('/projects');
+    router.push("/projects");
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold">New Project</h1>
-          <p className="text-muted-foreground">Create a new project</p>
+    <AppLayout>
+      <div className="px-4 md:px-6 py-6 max-w-3xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Link href="/projects">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h2 className="text-2xl font-semibold">New Project</h2>
+            <p className="text-sm text-muted-foreground">Create a new project</p>
+          </div>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Information</CardTitle>
-          <CardDescription>Enter the details for the new project</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm
-            onSubmit={handleSubmit}
-            isLoading={createProject.isPending}
-            submitLabel="Create Project"
-          />
-        </CardContent>
-      </Card>
-    </div>
+        <Card>
+          <CardContent className="p-6">
+            <ProjectForm
+              onSubmit={handleSubmit}
+              isLoading={createProject.isPending}
+              submitLabel="Create Project"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
   );
 }

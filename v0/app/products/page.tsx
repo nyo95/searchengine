@@ -1,95 +1,99 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { AppLayout } from "@/components/layout/app-layout"
+import { useEffect, useState } from "react"
+import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, Plus, Trash2, Pencil } from "lucide-react"
 import { ProductModal } from "@/components/modals/product-modal"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
-import { useSearchProducts } from "@/hooks/useProducts"
-import { useDebounce } from "@/hooks/useDebounce"
+
+interface Product {
+  id: string
+  sku: string
+  name: string
+  internalCode: string
+  description: string | null
+  imageUrl: string | null
+  brand: { id: string; name: string }
+  category: { id: string; name: string }
+  subcategory: { id: string; name: string; prefix: string }
+  dynamicAttributes: Record<string, any> | null
+  tags: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface ProductsResponse {
+  items: Product[]
+  total: number
+}
 
 export default function ProductsPage() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const debouncedQuery = useDebounce(searchQuery, 250)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  const {
-    data: productsData,
-    isLoading,
-    refetch,
-  } = useSearchProducts({
-    q: debouncedQuery,
-    isActive: true,
-    page: 1,
-    pageSize: 100,
-  })
-
-  const products = useMemo(() => productsData?.items || [], [productsData?.items])
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    setError(null)
-  }, [debouncedQuery])
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch("/api/products?isActive=true&pageSize=100")
+      const data: ProductsResponse = await response.json()
+      setProducts(data.items || [])
+    } catch (err) {
+      setError("Failed to fetch products")
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAddProduct = () => {
-    setSelectedProductId(null)
+    setSelectedProduct(null)
     setModalOpen(true)
   }
 
-  const handleEditProduct = (productId: string) => {
-    setSelectedProductId(productId)
+  const handleEditProduct = (product: Product) => {
+    setSelectedProduct(product)
     setModalOpen(true)
   }
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm("Delete this product?")) return
     try {
-      setIsDeleting(true)
-      const res = await fetch(`/api/products/${productId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: false }),
-      })
-      if (!res.ok) throw new Error("Failed to delete product")
-      refetch()
+      await fetch(`/api/products/${productId}`, { method: "PATCH", body: JSON.stringify({ isActive: false }) })
+      setProducts((prev) => prev.filter((p) => p.id !== productId))
     } catch (err) {
       console.error(err)
-      setError("Failed to delete product")
-    } finally {
-      setIsDeleting(false)
     }
   }
 
+  const handleModalClose = () => {
+    setModalOpen(false)
+    setSelectedProduct(null)
+    fetchProducts()
+  }
+
   return (
-    <AppLayout>
+    <MainLayout>
       <div className="px-4 md:px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold">Products</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {productsData?.total ?? 0} active products
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{products.length} products in catalog</p>
           </div>
           <Button onClick={handleAddProduct} className="gap-2">
             <Plus className="w-4 h-4" />
             Add Product
           </Button>
-        </div>
-
-        <div className="mb-4">
-          <div className="relative">
-            <Input
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-3"
-            />
-          </div>
         </div>
 
         {error && (
@@ -99,7 +103,7 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {isLoading ? (
+        {loading ? (
           <div className="border border-border rounded-lg overflow-hidden">
             <div className="p-4 space-y-3">
               {[...Array(5)].map((_, i) => (
@@ -109,8 +113,7 @@ export default function ProductsPage() {
           </div>
         ) : products.length === 0 ? (
           <div className="border border-border rounded-lg p-12 text-center">
-            <p className="text-muted-foreground mb-2">No products found</p>
-            <p className="text-xs text-muted-foreground mb-4">Create a product to get started</p>
+            <p className="text-muted-foreground mb-4">No products found</p>
             <Button onClick={handleAddProduct} variant="outline" className="gap-2 bg-transparent">
               <Plus className="w-4 h-4" />
               Create First Product
@@ -137,9 +140,7 @@ export default function ProductsPage() {
                         <div>
                           <p className="font-medium text-sm">{product.name}</p>
                           {product.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
-                              {product.description}
-                            </p>
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">{product.description}</p>
                           )}
                         </div>
                       </TableCell>
@@ -148,11 +149,11 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell className="text-sm">{product.sku}</TableCell>
                       <TableCell className="text-sm">{product.brand.name}</TableCell>
-                      <TableCell className="text-sm">{product.subcategory?.name || product.category?.name}</TableCell>
+                      <TableCell className="text-sm">{product.subcategory.name}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                           <button
-                            onClick={() => handleEditProduct(product.id)}
+                            onClick={() => handleEditProduct(product)}
                             className="p-1.5 hover:bg-muted rounded transition-colors"
                             title="Edit"
                           >
@@ -160,9 +161,8 @@ export default function ProductsPage() {
                           </button>
                           <button
                             onClick={() => handleDeleteProduct(product.id)}
-                            className="p-1.5 hover:bg-destructive/10 rounded transition-colors disabled:opacity-50"
+                            className="p-1.5 hover:bg-destructive/10 rounded transition-colors"
                             title="Delete"
-                            disabled={isDeleting}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </button>
@@ -176,13 +176,14 @@ export default function ProductsPage() {
           </div>
         )}
 
+        {/* Product Modal */}
         <ProductModal
           open={modalOpen}
           onOpenChange={setModalOpen}
-          product={products.find((p) => p.id === selectedProductId)}
-          onSuccess={() => refetch()}
+          product={selectedProduct || undefined}
+          onSuccess={handleModalClose}
         />
       </div>
-    </AppLayout>
+    </MainLayout>
   )
 }
