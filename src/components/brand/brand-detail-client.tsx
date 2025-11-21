@@ -1,168 +1,130 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 
-type BrandDetail = {
+type BrandDetailProps = {
   id: string
   name: string
-  nameEn?: string | null
   website?: string | null
-  email?: string | null
-  contact?: string | null
-  categoryId: string
-  categoryName: string
-  subcategories: { id: string; name: string; salesEmail?: string | null; salesContact?: string | null }[]
+  phone?: string | null
+  salesName?: string | null
+  salesContact?: string | null
+  isActive?: boolean
 }
 
-type Cat = { id: string; name: string; parentId: string | null }
-
-export default function BrandDetailClient({ brand, categories }: { brand: BrandDetail; categories: Cat[] }) {
+export default function BrandDetailClient({ id, name, website, phone, salesName, salesContact, isActive }: BrandDetailProps) {
   const { toast } = useToast()
-  const [state, setState] = useState({ website: brand.website || '', email: brand.email || '', contact: brand.contact || '' })
-  const [subs, setSubs] = useState(brand.subcategories)
-  const [newSubId, setNewSubId] = useState<string>('')
+  const [formState, setFormState] = useState({
+    name,
+    website: website ?? '',
+    phone: phone ?? '',
+    salesName: salesName ?? '',
+    salesContact: salesContact ?? '',
+  })
+  const [saving, setSaving] = useState(false)
 
-  const saveMain = async () => {
-    const res = await fetch(`/api/brands/${brand.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) })
-    if (res.ok) toast({ title: 'Tersimpan', description: 'Informasi brand diperbarui.' })
-  }
-
-  const saveSub = async (sid: string, patch: { salesEmail?: string; salesContact?: string }) => {
-    const res = await fetch(`/api/brands/${brand.id}/subcategory/${sid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-    if (res.ok) {
-      const data = await res.json()
-      setSubs((prev) => prev.map((s) => (s.id === sid ? { ...s, salesEmail: data.link.salesEmail || '', salesContact: data.link.salesContact || '' } : s)))
-      toast({ title: 'Tersimpan', description: 'Kontak subkategori diperbarui.' })
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/brands/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formState.name.trim(),
+          website: formState.website.trim() || null,
+          phone: formState.phone.trim() || null,
+          salesName: formState.salesName.trim() || null,
+          salesContact: formState.salesContact.trim() || null,
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to update brand')
+      toast({ title: 'Brand diperbarui' })
+    } catch (error: any) {
+      console.error(error)
+      toast({
+        title: 'Gagal menyimpan',
+        description: error?.message || 'Tidak dapat menyimpan brand.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const availableSubcats = categories.filter(
-    (c) => c.parentId === brand.categoryId && !subs.some((s) => s.id === c.id),
-  )
+  const toggleActive = async (next: boolean) => {
+    try {
+      const response = await fetch(`/api/brands/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: next }),
+      })
+      if (!response.ok) throw new Error('Failed to update brand')
+      toast({
+        title: next ? 'Brand diaktifkan' : 'Brand dinonaktifkan',
+      })
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: 'Gagal menonaktifkan brand',
+        variant: 'destructive',
+      })
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold">{brand.name}</h1>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label>Nama Brand</Label>
+          <Input
+            value={formState.name}
+            onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
+          />
         </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Brand Information</CardTitle>
-            <CardDescription>Edit website, email, contact</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label>Website</Label>
-              <Input value={state.website} onChange={(e) => setState((s) => ({ ...s, website: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={state.email} onChange={(e) => setState((s) => ({ ...s, email: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Contact</Label>
-              <Input value={state.contact} onChange={(e) => setState((s) => ({ ...s, contact: e.target.value }))} />
-            </div>
-            <div className="md:col-span-3">
-              <Button onClick={saveMain}>Save</Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Subcategory Contacts</CardTitle>
-            <CardDescription>Kontak sales per subkategori (opsional)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row md:items-end gap-2 mb-4">
-              <div className="flex-1">
-                <Label>Link new subcategory</Label>
-                <Input
-                  value={newSubId}
-                  onChange={(e) => setNewSubId(e.target.value)}
-                  placeholder="e.g. High Pressure Laminate"
-                  className="mt-1"
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const name = newSubId.trim()
-                  if (!name) return
-                  const res = await fetch(`/api/brands/${brand.id}/subcategory/by-name`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name }),
-                  })
-                  const data = await res.json()
-                  if (res.ok && data.link && data.subcategory) {
-                    setSubs((prev) => [
-                      ...prev,
-                      {
-                        id: data.subcategory.id,
-                        name: data.subcategory.name,
-                        salesEmail: data.link.salesEmail,
-                        salesContact: data.link.salesContact,
-                      },
-                    ])
-                    setNewSubId('')
-                    toast({ title: 'Subcategory linked', description: 'Brand linked to subcategory.' })
-                  } else {
-                    console.error('Link subcategory failed', data)
-                  }
-                }}
-                disabled={!newSubId.trim()}
-              >
-                Add
-              </Button>
-            </div>
-            <div className="overflow-x-auto">
-              <UITable>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subcategory</TableHead>
-                    <TableHead>Sales Email</TableHead>
-                    <TableHead>Sales Contact</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {subs.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell>{s.name}</TableCell>
-                      <TableCell>
-                        <Input defaultValue={s.salesEmail || ''} onBlur={(e) => saveSub(s.id, { salesEmail: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Input defaultValue={s.salesContact || ''} onBlur={(e) => saveSub(s.id, { salesContact: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => saveSub(s.id, { salesEmail: s.salesEmail || '', salesContact: s.salesContact || '' })}>Save</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {!subs.length && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">No subcategories linked.</TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </UITable>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+        <div>
+          <Label>Website</Label>
+          <Input
+            value={formState.website}
+            onChange={(event) => setFormState((prev) => ({ ...prev, website: event.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Telepon</Label>
+          <Input
+            value={formState.phone}
+            onChange={(event) => setFormState((prev) => ({ ...prev, phone: event.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Kontak Sales</Label>
+          <Input
+            value={formState.salesName}
+            onChange={(event) => setFormState((prev) => ({ ...prev, salesName: event.target.value }))}
+            placeholder="Nama sales"
+            className="mb-2"
+          />
+          <Input
+            value={formState.salesContact}
+            onChange={(event) => setFormState((prev) => ({ ...prev, salesContact: event.target.value }))}
+            placeholder="Email atau telepon sales"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Menyimpan...' : 'Simpan'}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => toggleActive(!(isActive ?? true))}
+        >
+          {isActive ? 'Nonaktifkan Brand' : 'Aktifkan Brand'}
+        </Button>
+      </div>
     </div>
   )
 }

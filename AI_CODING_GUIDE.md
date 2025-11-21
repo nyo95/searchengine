@@ -1,0 +1,3 @@
+# AI Coding Guide
+
+Instructions for working with Codex and Cursor...

@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           name: true,
-          nameEn: true,
+          phone: true,
+          website: true,
           _count: { select: { products: true } },
         },
         orderBy: { name: 'asc' },
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest) {
       brands: brands.map((brand) => ({
         id: brand.id,
         name: brand.name,
-        nameEn: brand.nameEn,
+        website: brand.website,
+        phone: brand.phone,
         productsCount: brand._count.products,
       })),
     })

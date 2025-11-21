@@ -1,6 +1,3 @@
-// This is your Prisma schema file for Architecture & Interior Product Catalog
-// Supports hierarchical product structure, search engine, and learning system
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User management
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -18,176 +14,150 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // User activities for learning engine
   activities  UserActivity[]
   schedules   ProjectSchedule[]
   preferences UserPreference[]
 }
 
-// Product Categories
-model Category {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  nameEn      String // English name for bilingual search
-  description String?
-
-  // Hierarchical structure
-  parentId String?
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryHierarchy")
-
-  brands             Brand[]
-  productTypes       ProductType[]
-  brandSubcategories BrandSubcategory[]
-  products           Product[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-}
-
-// Brands
 model Brand {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  nameEn      String? // English name
-  description String?
-  logo        String? // URL to logo image
-  website     String?
-  email       String?
-  contact     String? // phone or contact person details
-  categoryId  String
+  id           String   @id @default(cuid())
+  name         String
+  website      String?
+  phone        String?
+  salesName    String?
+  salesContact String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  category      Category           @relation(fields: [categoryId], references: [id])
-  productTypes  ProductType[]
+  products Product[]
+}
+
+model Category {
+  id             String         @id @default(cuid())
+  name           String
+  normalizedName String         @default("")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  subcategories Subcategory[]
   products      Product[]
-  subcategories BrandSubcategory[]
 
-  // Search optimization
-  searchVector String? // For PostgreSQL full-text search
+  @@unique([normalizedName])
+}
 
-  scheduleItems ScheduleItem[]
+model Subcategory {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @default("")
+  prefix         String
+  isActive       Boolean  @default(true)
+  categoryId     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id])
+  products Product[]
+
+  @@unique([categoryId, normalizedName])
+  @@unique([categoryId, prefix])
+}
+
+model Project {
+  id          String                  @id @default(cuid())
+  name        String
+  code        String                  @unique
+  clientName  String?
+  location    String?
+  description String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  scheduleItems ProjectScheduleItem[] @relation("ProjectScheduleToItems")
+}
+
+model ProjectSchedule {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+
+  user  User           @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Product Types (e.g., "Downlight", "HPL", "Chair")
-model ProductType {
-  id            String  @id @default(cuid())
-  name          String
-  nameEn        String? // English name
-  description   String?
-  brandId       String
-  subcategoryId String?
+model ProjectScheduleItem {
+  id           String    @id @default(cuid())
+  projectId    String
+  productId    String
+  code         String
+  area         String?
+  locationNote String?
+  usageNote    String?
+  sortOrder    Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  brand       Brand     @relation(fields: [brandId], references: [id])
-  subcategory Category? @relation(fields: [subcategoryId], references: [id])
-  products    Product[]
+  project Project @relation("ProjectScheduleToItems", fields: [projectId], references: [id])
+  product Product @relation("ProductScheduleItems", fields: [productId], references: [id])
 
-  scheduleItems ScheduleItem[]
-
-  // Category-specific attributes template
-  attributes Json? // Template for attributes specific to this type
-
-  // Search optimization
-  searchVector String? // For PostgreSQL full-text search
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@unique([projectId, code])
 }
 
-// Pivot: brands that operate in multiple subcategories
-model BrandSubcategory {
-  brandId       String
-  subcategoryId String
-  salesEmail    String?
-  salesContact  String?
-
-  brand       Brand    @relation(fields: [brandId], references: [id])
-  subcategory Category @relation(fields: [subcategoryId], references: [id])
-
-  @@id([brandId, subcategoryId])
-}
-
-// Products (SKU level)
 model Product {
-  id            String  @id @default(cuid())
-  sku           String  @unique
-  name          String
-  nameEn        String? // English name
-  description   String?
-  productTypeId String
-  brandId       String
-  categoryId    String?
+  id               String   @id @default(cuid())
+  internalCode     String
+  name             String
+  sku              String   @unique
+  brandId          String
+  categoryId       String
+  subcategoryId    String
+  description      String?
+  imageUrl         String?
+  tags             String[] @default([])
+  dynamicAttributes Json?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  productType ProductType    @relation(fields: [productTypeId], references: [id])
-  brand       Brand          @relation(fields: [brandId], references: [id])
-  category    Category?      @relation(fields: [categoryId], references: [id])
-  variants    Variant[]
-  media       ProductMedia[]
+  brand       Brand       @relation(fields: [brandId], references: [id])
+  category    Category    @relation(fields: [categoryId], references: [id])
+  subcategory Subcategory @relation(fields: [subcategoryId], references: [id])
+  scheduleItems ProjectScheduleItem[] @relation("ProductScheduleItems")
 
-  // Base pricing
-  basePrice Decimal?
-
-  // Search optimization
-  searchVector String? // For PostgreSQL full-text search
-  keywords     String[] // Additional keywords for search
-
-  // Analytics
-  viewCount  Int @default(0)
-  usageCount Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([brandId])
-  @@index([categoryId])
+  @@unique([subcategoryId, internalCode])
 }
 
-// Product Variants (specific configurations)
-model Variant {
-  id        String  @id @default(cuid())
-  productId String
-  name      String
-  nameEn    String?
-
-  product Product @relation(fields: [productId], references: [id])
-
-  // Flexible attributes stored as JSON
-  attributes Json // e.g., {color: "White", finish: "Matte", wattage: "12W", cri: "90"}
-
-  // Variant-specific pricing
-  price Decimal?
-
-  // Search optimization
-  searchVector String? // For PostgreSQL full-text search
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  media ProductMedia[]
-}
-
-// User Activity Tracking (for Learning Engine)
 model UserActivity {
   id     String       @id @default(cuid())
   userId String
   type   ActivityType
 
-  // Reference to what was interacted with
   productId String?
   variantId String?
   brandId   String?
-
-  // Search context
   searchQuery String?
-  filters     Json? // Applied filters
-
-  // Metadata
-  metadata Json? // Additional context
+  filters     Json?
+  metadata    Json?
 
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
 
-  user User @relation(fields: [userId], references: [id])
+model UserPreference {
+  id     String @id @default(cuid())
+  userId String
+  type   PreferenceType
+  key    String
+  value  String
+  weight Float  @default(1.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user  User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type, key, value])
 }
 
 enum ActivityType {
@@ -200,118 +170,10 @@ enum ActivityType {
   FILTER_CATEGORY
 }
 
-// User Preferences (learned behavior)
-model UserPreference {
-  id     String @id @default(cuid())
-  userId String
-
-  // Preference type
-  type  PreferenceType
-  key   String // e.g., "brand", "category", "attribute"
-  value String // e.g., "Taco", "Lighting", "color:white"
-
-  // Weight for ranking
-  weight Float @default(1.0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([userId, type, key, value])
-}
-
 enum PreferenceType {
   BRAND_PREFERENCE
   CATEGORY_PREFERENCE
   ATTRIBUTE_PREFERENCE
   PRICE_RANGE
   SEARCH_PATTERN
-}
-
-// Project Schedules
-model ProjectSchedule {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  userId      String
-
-  user  User           @relation(fields: [userId], references: [id])
-  items ScheduleItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Schedule Items
-model ScheduleItem {
-  id         String @id @default(cuid())
-  scheduleId String
-
-  schedule ProjectSchedule @relation(fields: [scheduleId], references: [id])
-
-  // Direct link to catalog entities
-  productId     String?
-  productTypeId String?
-  brandId       String?
-
-  productType ProductType? @relation(fields: [productTypeId], references: [id])
-  brand       Brand?       @relation(fields: [brandId], references: [id])
-
-  // Snapshot of text data
-  variantId   String?
-  productName String
-  brandName   String
-  sku         String
-
-  // Snapshot of data at time of addition
-  price      Decimal?
-  attributes Json // Snapshot of variant attributes
-
-  // Schedule fields
-  area          String?
-  quantity      Float
-  unitOfMeasure String
-  notes         String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Search Synonyms (for bilingual search)
-model SearchSynonym {
-  id       String  @id @default(cuid())
-  term     String // e.g., "kursi"
-  synonym  String // e.g., "chair"
-  category String? // Optional category for context
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Product media assets
-model ProductMedia {
-  id        String    @id @default(cuid())
-  productId String
-  variantId String?
-  type      MediaType
-  url       String
-  label     String?
-  metadata  Json?
-
-  product Product  @relation(fields: [productId], references: [id])
-  variant Variant? @relation(fields: [variantId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([productId, type])
-}
-
-enum MediaType {
-  IMAGE
-  DATASHEET
-  CAD
-  DOCUMENT
-  OTHER
 }

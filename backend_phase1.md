@@ -1,0 +1,3 @@
+# Backend Phase 1
+
+Schema reset and brand/product/search implementation...

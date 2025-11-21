@@ -83,6 +83,7 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
   const [isEditingName, setIsEditingName] = useState(false)
   const [savingSchedule, setSavingSchedule] = useState(false)
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({})
   const [addingScheduleRow, setAddingScheduleRow] = useState(false)
   const [skuOptions, setSkuOptions] = useState<Record<string, CatalogProductOption[]>>({})
   const [skuLoadingState, setSkuLoadingState] = useState<Record<string, boolean>>({})
@@ -92,7 +93,6 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
   const [newScheduleDescription, setNewScheduleDescription] = useState('')
   const [creatingSchedule, setCreatingSchedule] = useState(false)
   const [isRfVariantMode, setIsRfVariantMode] = useState(false)
-  const [designerMode, setDesignerMode] = useState(true)
 
   const productTypeLookup = useMemo(() => {
     const map = new Map<string, ProductTypeOption>()
@@ -424,9 +424,8 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
 
   const scheduleSelectValue = selectedScheduleId || undefined
 
-  const tableHeaderDescription = designerMode
-    ? 'Designer wajib mengisi nama material, kategori, tipe, brand, dan SKU sebelum dikurasi admin.'
-    : 'Admin dapat memperbarui brand, tipe, SKU, serta mengakses detail produk untuk kurasi lanjutan.'
+  const tableHeaderDescription =
+    'Pantau schedule items, validasi prefix/nomor unik, dan pastikan brand/SKU terhubung dengan katalog.'
 
   return (
     <>
@@ -500,9 +499,6 @@ export function ProjectScheduleTab({ userId, initialScheduleId }: ProjectSchedul
             <Button size="sm" onClick={() => handleCreateDialogChange(true)}>
               <Plus className="mr-2 h-4 w-4" />
               New Project
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDesignerMode((prev) => !prev)}>
-              {designerMode ? 'Designer Mode' : 'Admin Mode'}
             </Button>
           </div>
         </CardHeader>

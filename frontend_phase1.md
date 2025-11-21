@@ -1,0 +1,3 @@
+# Frontend Phase 1
+
+Cursor-driven UI redesign structure...

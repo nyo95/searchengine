@@ -105,7 +105,7 @@ export function ProductCatalogTab({ userId }: ProductCatalogTabProps) {
         if (selectedProductType && selectedProductType !== 'ALL') {
           params.set('productTypeId', selectedProductType)
         }
-        const response = await fetch(`/api/search?${params.toString()}`)
+        const response = await fetch(`/api/search/products?${params.toString()}`)
         if (!response.ok) throw new Error('Gagal memuat hasil pencarian')
         const data = await response.json()
         const mapped: SearchResultProduct[] = (data.products || []).map((product: any) => {
@@ -165,10 +165,14 @@ export function ProductCatalogTab({ userId }: ProductCatalogTabProps) {
       return
     }
     try {
-      const response = await fetch(`/api/suggestions?q=${encodeURIComponent(query)}&limit=6`)
+      const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}&limit=6`)
       if (!response.ok) throw new Error('Failed to load suggestions')
       const data = await response.json()
-      setSuggestions(data.suggestions || [])
+      setSuggestions(
+        (data.suggestions || [])
+          .map((item: any) => item.name)
+          .filter(Boolean),
+      )
     } catch (error) {
       console.error(error)
       setSuggestions([])
