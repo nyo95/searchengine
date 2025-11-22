@@ -1,96 +1,59 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { brandService, type Brand, type CreateBrandRequest, type UpdateBrandRequest } from '@/services/brandService';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { brandService, type Brand, type CreateBrandRequest, type UpdateBrandRequest } from '@/services/brandService'
 
-// Query keys
 export const brandKeys = {
   all: ['brands'] as const,
-  lists: () => [...brandKeys.all, 'list'] as const,
-  list: () => [...brandKeys.lists()] as const,
-  details: () => [...brandKeys.all, 'detail'] as const,
-  detail: (id: string) => [...brandKeys.details(), id] as const,
-};
-
-// Get all brands
-export function useBrands() {
-  return useQuery({
-    queryKey: brandKeys.list(),
-    queryFn: () => brandService.getAll(),
-  });
+  list: (search?: string) => [...brandKeys.all, search] as const,
+  detail: (id: string) => [...brandKeys.all, 'detail', id] as const,
 }
 
-// Get brand by ID
-export function useBrand(id: string | null) {
+export function useBrands(search?: string) {
   return useQuery({
-    queryKey: brandKeys.detail(id!),
-    queryFn: () => brandService.getById(id!),
-    enabled: !!id,
-  });
+    queryKey: brandKeys.list(search),
+    queryFn: () => brandService.getAll(search),
+  })
 }
 
-// Create brand mutation
 export function useCreateBrand() {
-  const queryClient = useQueryClient();
-
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateBrandRequest) => brandService.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: brandKeys.list() });
-      toast.success('Brand created successfully');
+      queryClient.invalidateQueries({ queryKey: brandKeys.all })
+      toast.success('Brand saved')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to create brand');
+      toast.error(error?.response?.data?.error || 'Failed to save brand')
     },
-  });
+  })
 }
 
-// Update brand mutation
 export function useUpdateBrand() {
-  const queryClient = useQueryClient();
-
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateBrandRequest }) =>
-      brandService.update(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: brandKeys.list() });
-      queryClient.invalidateQueries({ queryKey: brandKeys.detail(variables.id) });
-      toast.success('Brand updated successfully');
+    mutationFn: ({ id, data }: { id: string; data: UpdateBrandRequest }) => brandService.update(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: brandKeys.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: brandKeys.all })
+      toast.success('Brand updated')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to update brand');
+      toast.error(error?.response?.data?.error || 'Failed to update brand')
     },
-  });
+  })
 }
 
-// Soft delete brand mutation
-export function useSoftDeleteBrand() {
-  const queryClient = useQueryClient();
-
+export function useDeleteBrand() {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => brandService.softDelete(id),
+    mutationFn: (id: string) => brandService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: brandKeys.list() });
-      toast.success('Brand deleted successfully');
+      queryClient.invalidateQueries({ queryKey: brandKeys.all })
+      toast.success('Brand deleted')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to delete brand');
+      toast.error(error?.response?.data?.error || 'Failed to delete brand')
     },
-  });
+  })
 }
-
-// Restore brand mutation
-export function useRestoreBrand() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => brandService.restore(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: brandKeys.list() });
-      toast.success('Brand restored successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Failed to restore brand');
-    },
-  });
-}
-

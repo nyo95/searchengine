@@ -7,173 +7,86 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  activities  UserActivity[]
-  schedules   ProjectSchedule[]
-  preferences UserPreference[]
+enum ProjectStatus {
+  PLANNING
+  ONGOING
+  DONE
 }
 
 model Brand {
-  id           String   @id @default(cuid())
-  name         String
-  website      String?
-  phone        String?
-  salesName    String?
-  salesContact String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  name              String
+  salesContactName  String
+  salesContactPhone String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   products Product[]
 }
 
 model Category {
-  id             String         @id @default(cuid())
-  name           String
-  normalizedName String         @default("")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   subcategories Subcategory[]
-  products      Product[]
-
-  @@unique([normalizedName])
 }
 
 model Subcategory {
-  id             String   @id @default(cuid())
-  name           String
-  normalizedName String   @default("")
-  prefix         String
-  isActive       Boolean  @default(true)
-  categoryId     String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  name                      String
+  prefix                    String
+  categoryId                String?
+  defaultAttributesTemplate Json?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  category Category @relation(fields: [categoryId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
   products Product[]
 
-  @@unique([categoryId, normalizedName])
-  @@unique([categoryId, prefix])
-}
-
-model Project {
-  id          String                  @id @default(cuid())
-  name        String
-  code        String                  @unique
-  clientName  String?
-  location    String?
-  description String?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-
-  scheduleItems ProjectScheduleItem[] @relation("ProjectScheduleToItems")
-}
-
-model ProjectSchedule {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  userId      String
-
-  user  User           @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ProjectScheduleItem {
-  id           String    @id @default(cuid())
-  projectId    String
-  productId    String
-  code         String
-  area         String?
-  locationNote String?
-  usageNote    String?
-  sortOrder    Int?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  project Project @relation("ProjectScheduleToItems", fields: [projectId], references: [id])
-  product Product @relation("ProductScheduleItems", fields: [productId], references: [id])
-
-  @@unique([projectId, code])
+  @@unique([prefix, categoryId])
 }
 
 model Product {
-  id               String   @id @default(cuid())
-  internalCode     String
-  name             String
-  sku              String   @unique
-  brandId          String
-  categoryId       String
-  subcategoryId    String
-  description      String?
-  imageUrl         String?
-  tags             String[] @default([])
-  dynamicAttributes Json?
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  skuOrType      String
+  brandId        String
+  subcategoryId  String
+  attributesData Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  brand       Brand       @relation(fields: [brandId], references: [id])
-  category    Category    @relation(fields: [categoryId], references: [id])
-  subcategory Subcategory @relation(fields: [subcategoryId], references: [id])
-  scheduleItems ProjectScheduleItem[] @relation("ProductScheduleItems")
-
-  @@unique([subcategoryId, internalCode])
+  brand         Brand                 @relation(fields: [brandId], references: [id])
+  subcategory   Subcategory           @relation(fields: [subcategoryId], references: [id])
+  scheduleItems ProjectScheduleItem[]
 }
 
-model UserActivity {
-  id     String       @id @default(cuid())
-  userId String
-  type   ActivityType
+model Project {
+  id         String        @id @default(cuid())
+  name       String
+  clientName String?
+  status     ProjectStatus @default(PLANNING)
+  budget     Decimal?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  productId String?
-  variantId String?
-  brandId   String?
-  searchQuery String?
-  filters     Json?
-  metadata    Json?
-
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  scheduleItems ProjectScheduleItem[]
 }
 
-model UserPreference {
-  id     String @id @default(cuid())
-  userId String
-  type   PreferenceType
-  key    String
-  value  String
-  weight Float  @default(1.0)
+model ProjectScheduleItem {
+  id        String   @id @default(cuid())
+  projectId String
+  productId String
+  code      String
+  quantity  Float?
+  notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user  User @relation(fields: [userId], references: [id])
 
-  @@unique([userId, type, key, value])
-}
+  project Project @relation(fields: [projectId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 
-enum ActivityType {
-  SEARCH
-  CLICK_PRODUCT
-  VIEW_PRODUCT
-  VIEW_VARIANT
-  ADD_TO_SCHEDULE
-  CLICK_BRAND
-  FILTER_CATEGORY
-}
-
-enum PreferenceType {
-  BRAND_PREFERENCE
-  CATEGORY_PREFERENCE
-  ATTRIBUTE_PREFERENCE
-  PRICE_RANGE
-  SEARCH_PATTERN
+  @@unique([projectId, code])
 }
