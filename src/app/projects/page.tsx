@@ -6,9 +6,10 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Plus, Trash2, Pencil } from "lucide-react";
+import { AlertCircle, Plus, Trash2, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { useProjects, useDeleteProject } from "@/hooks/useProjects";
 
 export default function ProjectsPage() {
@@ -96,7 +97,7 @@ export default function ProjectsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Items</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -106,17 +107,15 @@ export default function ProjectsPage() {
                   {filtered.map((project) => (
                     <TableRow key={project.id}>
                       <TableCell className="font-medium text-sm">
-                        <Link href={`/projects/${project.id}/edit`} className="hover:underline">
-                          {project.name}
-                        </Link>
-                        {project.description && (
+                        {project.name}
+                        {project.clientName && (
                           <p className="text-xs text-muted-foreground line-clamp-1">
-                            {project.description}
+                            {project.clientName}
                           </p>
                         )}
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{project.code}</code>
+                        <Badge variant="outline">{project.status}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {project.clientName || "—"}
@@ -126,10 +125,10 @@ export default function ProjectsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Link href={`/projects/${project.id}/edit`}>
+                          <Link href={`/projects/${project.id}/schedule`}>
                             <Button variant="ghost" size="sm" className="gap-2">
-                              <Pencil className="w-4 h-4" />
-                              Edit
+                              <ClipboardList className="w-4 h-4" />
+                              Schedule
                             </Button>
                           </Link>
                           <Button

@@ -1,45 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-type UpdateBrandPayload = {
-  name?: string
-  website?: string | null
-  phone?: string | null
-  salesName?: string | null
-  salesContact?: string | null
-  isActive?: boolean
-}
-
-async function applyUpdate(id: string, payload: UpdateBrandPayload) {
-  const updateData: Record<string, unknown> = {}
-  if (payload.name !== undefined) {
-    if (!payload.name.trim()) {
-      throw new Error('name cannot be empty')
-    }
-    updateData.name = payload.name.trim()
-  }
-  if (payload.website !== undefined) {
-    updateData.website = payload.website?.trim() || null
-  }
-  if (payload.phone !== undefined) {
-    updateData.phone = payload.phone?.trim() || null
-  }
-  if (payload.salesName !== undefined) {
-    updateData.salesName = payload.salesName?.trim() || null
-  }
-  if (payload.salesContact !== undefined) {
-    updateData.salesContact = payload.salesContact?.trim() || null
-  }
-  if (payload.isActive !== undefined) {
-    updateData.isActive = payload.isActive
-  }
-  if (!Object.keys(updateData).length) {
-    throw new Error('No changes provided')
-  }
-  return db.brand.update({
-    where: { id },
-    data: updateData,
-  })
+interface BrandUpdatePayload {
+  name?: string | null
+  salesContactName?: string | null
+  salesContactPhone?: string | null
 }
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
@@ -55,30 +20,46 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const payload: UpdateBrandPayload = await request.json()
-    const brand = await applyUpdate(params.id, payload)
-    return NextResponse.json({ brand })
-  } catch (error: any) {
-    const message = error?.message || 'Failed to update brand'
-    const status = message === 'No changes provided' || message === 'name cannot be empty' ? 400 : 500
-    console.error('Brand update error', error)
-    return NextResponse.json({ error: message }, { status })
-  }
-}
+    const payload: BrandUpdatePayload = await request.json()
+    const data: Record<string, string> = {}
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  return PATCH(request, { params })
+    if (payload.name !== undefined) {
+      if (!payload.name?.trim()) return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+      data.name = payload.name.trim()
+    }
+    if (payload.salesContactName !== undefined) {
+      if (!payload.salesContactName?.trim())
+        return NextResponse.json({ error: 'Sales contact name cannot be empty' }, { status: 400 })
+      data.salesContactName = payload.salesContactName.trim()
+    }
+    if (payload.salesContactPhone !== undefined) {
+      if (!payload.salesContactPhone?.trim())
+        return NextResponse.json({ error: 'Sales contact phone cannot be empty' }, { status: 400 })
+      data.salesContactPhone = payload.salesContactPhone.trim()
+    }
+
+    if (!Object.keys(data).length) {
+      return NextResponse.json({ error: 'No changes provided' }, { status: 400 })
+    }
+
+    const brand = await db.brand.update({ where: { id: params.id }, data })
+    return NextResponse.json({ brand })
+  } catch (error) {
+    console.error('Brand update error', error)
+    return NextResponse.json({ error: 'Failed to update brand' }, { status: 500 })
+  }
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await db.brand.update({
-      where: { id: params.id },
-      data: { isActive: false },
-    })
+    await db.brand.delete({ where: { id: params.id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Brand delete error', error)
     return NextResponse.json({ error: 'Failed to delete brand' }, { status: 500 })
   }
+}
+
+export async function PUT(request: NextRequest, ctx: { params: { id: string } }) {
+  return PATCH(request, ctx)
 }
